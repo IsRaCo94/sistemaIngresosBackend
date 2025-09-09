@@ -1,0 +1,108 @@
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Put,
+  Delete,
+  Patch,
+  ParseIntPipe,
+  Query,
+  NotFoundException,
+  InternalServerErrorException,
+  Res
+} from '@nestjs/common';
+import { Response } from 'express';
+import { IngresosService } from './ingresos.service';
+import { IngresosEntity } from './ingresos.entity';
+import { IngresosDto } from 'src/dtos/ingresos.dto';
+import { ApiBody, ApiResponse } from '@nestjs/swagger';
+import { Any } from 'typeorm';
+
+@Controller('api/ingresos/')
+export class IngresosController {
+  constructor(
+    private readonly ingresoService: IngresosService) { }
+  // @Post()
+  // // @ApiOperation({ summary: 'Crear un nuevo insumo' }) // Operation summary
+  // @ApiBody({
+  //   type: IngresosDto, // Use the DTO to define the expected request body for Swagger
+  //   description: 'Autogenerico.',
+  // })
+  // @ApiResponse({ status: 201, description: 'Creado exitosamente.', type: IngresosDto }) // Success response
+  // @ApiResponse({ status: 400, description: 'error' }) // Error response
+
+  @Post()
+  async create(
+    @Body() ingresoData: Partial<IngresosEntity>,
+  ): Promise<IngresosEntity> {
+    return this.ingresoService.create(ingresoData);
+  }
+
+  @Get('listar-ingresos')
+  async findAll(): Promise<IngresosEntity[]> {
+    return this.ingresoService.findAll();
+  }
+  @Get()
+  async getLastNumDeposito(): Promise<number> {
+    try {
+      return await this.ingresoService.getNextNumDeposito();
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+
+  @Get('maximonumFact')
+  async getLastNumFactura(): Promise<number | null> {
+    try {
+      return await this.ingresoService.getMaxNumFactura();
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
+  }
+  @Get('reporte-informe-diario/:fecha')
+  async getReporte(
+    @Param('fecha') fecha : string,
+   
+  @Res() res: Response) {
+    try {
+      const reportBuffer = await this.ingresoService.generateReport(fecha);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="reporte_ingresosDiarios_${fecha}.pdf"`,
+        'Content-Length': reportBuffer.length,
+      });
+      res.send(reportBuffer);
+    } catch (error) {
+      console.error('Report generation error:', error);
+      res.status(500).json({ message: 'Error generating report', error: error.message, stack: error.stack });
+    }
+  }
+  
+  @Get("/:id_ingresos")
+  async findOne(
+    @Param("id_ingresos") id_ingresos: number,
+  ): Promise<IngresosEntity | null> {
+    return this.ingresoService.findOne((id_ingresos))
+  }
+
+  @Put("/:id_ingresos")
+  async update(
+    @Param("id_ingresos", ParseIntPipe) id_ingresos: number,
+    @Body() ingresoActualizado: Partial<IngresosEntity>,
+  ): Promise<IngresosEntity | null> {
+    return this.ingresoService.update(
+      id_ingresos,
+      ingresoActualizado,
+    );
+  }
+  @Delete('/:id_ingresos') // Use DELETE HTTP method
+  async borradologico(@Param('id_ingresos', ParseIntPipe) id_ingresos: number) {
+    await this.ingresoService.borradologico(id_ingresos);
+    //Optionally return a message, but NO_CONTENT is common for successful DELETE
+    return { message: `Ingreso con ID ${id_ingresos} ha sido marcado como eliminado.` };
+  }
+
+
+}
