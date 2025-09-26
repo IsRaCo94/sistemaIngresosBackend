@@ -19,6 +19,7 @@ import { IngresoRubrosDetalleModule } from './ingreso-rubros-detalle/ingreso-rub
 import { IngresosDetalleModule } from './ingresos-detalle/ingresos-detalle.module';
 import { IngresoReportesModule } from './ingreso-reportes/ingreso-reportes.module';
 import { ConfigModule } from '@nestjs/config';
+import { MulterModule } from '@nestjs/platform-express';
 
 
 @Module({
@@ -41,15 +42,28 @@ IngresosModule,
 
     IngresoEmpresaModule,
 
-      TypeOrmModule.forRoot({
-      type: "postgres", // o 'mysql', 'mssql', etc.
-      host: "localhost", // Cambia esto si tu base de datos está en otro lugar
-      port: 5432, // Puerto por defecto de PostgreSQL
-      username: "postgres", // Tu usuario de la base de datos
-      password: "israco", // Tu contraseña de la base de datos
-      database: "CUSTOMPOA01", // El nombre de tu base de datos
-      entities: [__dirname + "/**/*.entity{.ts,.js}"],
-      synchronize: false, // ¡Cuidado en producción! Esto sincroniza el esquema automáticamente
+    MulterModule.register({
+      limits: {
+        fileSize: 10 * 1024 * 1024, // 10MB límite
+      },
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+          cb(null, true);
+        } else {
+          cb(new Error('Solo se permiten archivos PDF'), false);
+        }
+      },
+    }),
+
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.DB_HOST || 'postgres',//'postgres' para docker
+      port: Number(process.env.DB_PORT) || 5432,
+      username: process.env.DB_USERNAME || 'postgres',
+      password: process.env.DB_PASSWORD || 'postgres',
+      database: process.env.DB_DATABASE || 'CUSTOMPOA01',
+      entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      synchronize: false,
     }),
 ],
   controllers: [AppController],

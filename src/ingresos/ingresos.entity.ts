@@ -11,7 +11,7 @@ export class IngresosEntity {
   @Column()
   fecha: Date
   // ... existing code ...
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 4 })
   monto: number;
   // ... existing code ...
   @Column()
@@ -40,9 +40,9 @@ export class IngresosEntity {
   intereses: number;
   @Column()
   aportes_patro: number;
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 4 })
   deposito_dema: number;
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  @Column({ type: 'decimal', precision: 10, scale: 4 })
   amortizacion_pagos: number;
   @Column()
   cuenta: string;
@@ -69,15 +69,16 @@ export class IngresosEntity {
   @Column()
   id_tipo_rubro: number;
   @Column()
-  num_rubro: number;
+  num_rubro: string;
   @Column()
   servicio: string;
   @Column()
   nombre: string;
   @Column()
-  num_depo: number;
-  @Column({ type: 'decimal', precision: 10, scale: 2 })
+  num_depo: string;
+  @Column({ type: 'decimal', precision: 10, scale: 4 })
   importe_total: number;
-
+  @Column()
+  fecha_edicion: Date;
 
 }

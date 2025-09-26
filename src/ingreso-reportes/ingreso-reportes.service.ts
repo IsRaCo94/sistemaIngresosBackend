@@ -5,13 +5,25 @@ import { IngresoReportesEntity } from './ingreso-reportes.entity';
 import { Repository } from 'typeorm';
 import { join } from 'path';
 import * as carbone from 'carbone';
-import * as ExcelJS from 'exceljs'
+import * as ExcelJS from 'exceljs';
+import * as libreofficeConvert from 'libreoffice-convert';
 @Injectable()
 export class IngresoReportesService {
 
     constructor(@InjectRepository(IngresoReportesEntity)
     private readonly ingresoRepository: Repository<IngresoReportesEntity>) {
+        // Forzar la ruta de LibreOffice para libreoffice-convert
+        process.env.LIBREOFFICE_BIN = '/usr/bin/soffice';
+    }
 
+    // Función de conversión con libreoffice-convert
+    private async convertWithLibreOffice(inputBuffer: Buffer, outputFormat: string): Promise<Buffer> {
+        return new Promise((resolve, reject) => {
+            libreofficeConvert.convert(inputBuffer, outputFormat, undefined, (err, result) => {
+                if (err) return reject(err);
+                resolve(result);
+            });
+        });
     }
     async generaReporteTipoIngreso(fechaInicio: string, fechaFin: string, lugar: string): Promise<Buffer> {
         const query = `
@@ -42,16 +54,16 @@ export class IngresoReportesService {
         const ingresos = ingresosRaw.map((item) => {
             return {
                 
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 lugar: item.lugar,
                 tipo_ingres: item.tipo_ingres,
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2), // Cambiado de item.monto a item.monto_total
-                total_general: Number(item.total_general).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), // Cambiado de item.monto a item.monto_total
+                total_general: Number(item.total_general).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 // total_registros: Number(item.total_registros),
-                total_diario: Number(item.total_diario).toFixed(2),
+                total_diario: Number(item.total_diario).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
@@ -75,12 +87,18 @@ export class IngresoReportesService {
             ingresos: ingresos,
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -107,20 +125,20 @@ export class IngresoReportesService {
         const ingresosRaw = await this.ingresoRepository.query(query);
         const ingresos = ingresosRaw.map((item) => {
             return {
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 lugar: item.lugar,
                 tipo_ingres: item.tipo_ingres,
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -137,12 +155,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -175,14 +199,14 @@ export class IngresoReportesService {
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -199,12 +223,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -239,14 +269,14 @@ export class IngresoReportesService {
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -263,12 +293,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -302,14 +338,14 @@ export class IngresoReportesService {
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.monto), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.monto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -326,12 +362,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -422,11 +464,11 @@ export class IngresoReportesService {
             return {
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toFixed(2),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
             };
         });
@@ -441,12 +483,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -476,11 +524,11 @@ export class IngresoReportesService {
             return {
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toFixed(2),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
             };
         });
@@ -495,12 +543,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -532,16 +586,16 @@ export class IngresoReportesService {
 
         const ingresos = ingresosRaw.map((item) => {
             return {
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 estado: item.estado,
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
                 lugar: item.lugar,
                 tipo_emision: item.tipo_emision,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
-                monto: Number(item.monto).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                monto: Number(item.monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
@@ -558,12 +612,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -593,13 +653,13 @@ export class IngresoReportesService {
         const ingresos = ingresosRaw.map((item) => {
             return {
                 estado: item.estado,
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
                 tipo_emision: item.tipo_emision,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
-                importe_total: Number(item.importe_total).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
@@ -616,12 +676,18 @@ export class IngresoReportesService {
             ingresos: ingresos
         };
         const options = { convertTo: 'pdf' };
-        return new Promise<Buffer>((resolve, reject) => {
-            carbone.render(templatePath, data, options, (err, result) => {
-                if (err) {
-                    return reject(err);
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
                 }
-                resolve(result);
+                // Fallback: renderizar ODT y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
             });
         });
     }
@@ -659,7 +725,7 @@ async generaReporteTipoIngresoExcel(fechaInicio: string, fechaFin: string, lugar
             return {
                 lugar: item.lugar,
                 estado: item.estado,
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipo_ingres: item.tipo_ingres,
@@ -667,7 +733,7 @@ async generaReporteTipoIngresoExcel(fechaInicio: string, fechaFin: string, lugar
                 importe_total: Number(item.importe_total),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
-                total_general: Number(item.total_general).toFixed(2),
+                total_general: Number(item.total_general).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 totalRegistros: ingresosRaw.length,
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
@@ -685,16 +751,22 @@ async generaReporteTipoIngresoExcel(fechaInicio: string, fechaFin: string, lugar
        
     };
     
-    const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
 async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, tipo_ingres: string, lugar): Promise<Buffer> {
     // Reuse the same query from PDF version
@@ -720,20 +792,20 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
     const ingresosRaw = await this.ingresoRepository.query(query);
         const ingresos = ingresosRaw.map((item) => {
          return {
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 lugar: item.lugar,
                 tipo_ingres: item.tipo_ingres,
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.monto), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.monto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -748,16 +820,22 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
        
     };
     
-    const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
  async generaReportRubrosExcel(fechaInicio: string, fechaFin: string, lugar: string): Promise<Buffer> {
         const query = `
@@ -788,14 +866,14 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -811,16 +889,22 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
        
     };
     
-    const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
  async generaReportPorRubroExcel(fechaInicio: string, fechaFin: string, nombre: string, lugar: string): Promise<Buffer> {
         const query = `
@@ -852,14 +936,14 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -875,16 +959,22 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             //tipo_ingres,
             ingresos: ingresos
         };
-      const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
   async generaReportRegionalExcel(fechaInicio: string, fechaFin: string): Promise<Buffer> {
         const query = `
@@ -915,14 +1005,14 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 estado: item.estado,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toFixed(2),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -938,16 +1028,22 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             //tipo_ingres,
             ingresos: ingresos
         };
-       const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
 // async generaReportPorRegionalExcel(fechaInicio: string, fechaFin: string, lugar: string): Promise<Buffer> {
 //         const query = `
@@ -1038,11 +1134,11 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             return {
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toFixed(2),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
             };
@@ -1057,16 +1153,22 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             //tipo_ingres,
             ingresos: ingresos
         };
-       const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
     async generaReportGeneralRubrosExcel(fechaInicio: string, fechaFin: string): Promise<Buffer> {
         const query = `
@@ -1097,11 +1199,11 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toFixed(2),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
             };
         });
@@ -1115,16 +1217,22 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             //tipo_ingres,
             ingresos: ingresos
         };
-       const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
 
     async generaReportEmisionLugarExcel(fechaInicio: string, fechaFin: string, tipo_emision: string, lugar: string): Promise<Buffer> {
@@ -1154,16 +1262,16 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
 
         const ingresos = ingresosRaw.map((item) => {
             return {
-                importe_total: Number(item.importe_total).toFixed(2),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 estado: item.estado,
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
                 lugar: item.lugar,
                 tipo_emision: item.tipo_emision,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
-                monto: Number(item.monto).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                monto: Number(item.monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
@@ -1179,16 +1287,22 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             fechaFin,
             ingresos: ingresos
         };
-       const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
      async generaReportEmisionExcel(fechaInicio: string, fechaFin: string, tipo_emision: string): Promise<Buffer> {
         const query = `
@@ -1216,13 +1330,13 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
         const ingresos = ingresosRaw.map((item) => {
             return {
                 estado: item.estado,
-                total_montos: Number(item.total_montos).toFixed(2),
+                total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
                 tipo_emision: item.tipo_emision,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
-                importe_total: Number(item.importe_total).toFixed(2),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
@@ -1238,15 +1352,21 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             fechaFin,
             ingresos: ingresos
         };
-       const options = { convertTo: 'xlsx' };
-    
-    return new Promise<Buffer>((resolve, reject) => {
-        carbone.render(templatePath, data, options, (err, result) => {
-            if (err) {
-                return reject(err);
-            }
-            resolve(result);
+        const options = { convertTo: 'xlsx' };
+
+        return new Promise<Buffer>(async (resolve, reject) => {
+            carbone.render(templatePath, data, options, async (err, result) => {
+                if (!err && result) {
+                    return resolve(result);
+                }
+                // Fallback: renderizar ODS y convertir con libreoffice-convert
+                carbone.render(templatePath, data, (err2, odfBuffer) => {
+                    if (err2) return reject(err);
+                    this.convertWithLibreOffice(Buffer.from(odfBuffer), '.xlsx')
+                        .then(resolve)
+                        .catch(() => reject(err));
+                });
+            });
         });
-    });
 }
 }
