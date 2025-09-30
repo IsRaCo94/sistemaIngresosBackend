@@ -23,11 +23,14 @@ import { ApiBody, ApiResponse } from '@nestjs/swagger';
 import { Any } from 'typeorm';
 import { FileInterceptor } from '@nestjs/platform-express';
 import * as multer from 'multer';
+import { IngresoExternoService } from './ingreso-externo.service';
 
 @Controller('api/ingresos/')
 export class IngresosController {
   constructor(
-    private readonly ingresoService: IngresosService) { }
+    private readonly ingresoService: IngresosService,
+    private readonly ingresoExternoService: IngresoExternoService,
+  ) { }
   // @Post()
   // // @ApiOperation({ summary: 'Crear un nuevo insumo' }) // Operation summary
   // @ApiBody({
@@ -36,7 +39,12 @@ export class IngresosController {
   // })
   // @ApiResponse({ status: 201, description: 'Creado exitosamente.', type: IngresosDto }) // Success response
   // @ApiResponse({ status: 400, description: 'error' }) // Error response
-
+  @Get('pagos-aportes/by-com-nro/:num_form')
+  async getAportes(
+    @Param("num_form") num_form: number,
+  ): Promise<IngresosEntity | null> {
+    return this.ingresoExternoService.getAportes(num_form);
+  }
   @Post()
   async create(
     @Body() ingresoData: Partial<IngresosEntity>,
@@ -209,4 +217,8 @@ export class IngresosController {
   }
 
 
+  // @Post('/auth/login')
+  // async loginToExternalApi() {
+  //   return this.ingresoExternoService.loginToExternalApi();
+  // }
 }
