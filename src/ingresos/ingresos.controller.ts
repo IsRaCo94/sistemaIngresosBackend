@@ -71,14 +71,17 @@ export class IngresosController {
   async findAll(): Promise<IngresosEntity[]> {
     return this.ingresoService.findAll();
   }
-  @Get()
-  async getLastNumDeposito(): Promise<number> {
-    try {
-      return await this.ingresoService.getNextNumDeposito();
-    } catch (error) {
-      throw new InternalServerErrorException(error.message);
-    }
+// ... existing code ...
+@Get()
+async getLastNumRecibo(): Promise<number> {
+  try {
+    const maxNum = await this.ingresoService.getMaxNumRecibo();
+    return maxNum >= 1000 ? maxNum : 1000;
+  } catch (error) {
+    throw new InternalServerErrorException(error.message);
   }
+}
+// ... existing code ...
 
   @Get('maximonumFact')
   async getLastNumFactura(): Promise<number | null> {

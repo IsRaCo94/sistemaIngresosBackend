@@ -103,18 +103,6 @@ export class IngresoEmpresaExternoService {
     return this.apiToken;
   }
 
-// async getAllEmpresas(): Promise<any> {
-//   return this.handleRequest(async () => {
-//     const response = await firstValueFrom(
-//       this.httpService.get(`${this.baseUrl}/modelo/getAllEmpresas`, {
-//         headers: {
-//           'Authorization': `Bearer ${this.apiToken}`
-//         }
-//       })
-//     );
-//     return response.data;
-//   }, 'getAllEmpresas');
-// }
 
 async getAllEmpresas(): Promise<any> {
   return this.handleRequest(async () => {
@@ -129,23 +117,30 @@ async getAllEmpresas(): Promise<any> {
     return response.data;
   }, 'getAllEmpresas');
 }
-  /* async getAseguradosByNroPatronal(npatronal: string): Promise<any> {
-    console.log("🔍 Llamando a getAseguradosByNroPatronal con nroPatronal:", npatronal);
-    
-    return await this.handleRequest(async () => {
-      const url = ${this.baseUrl}/modelo/getAllAseguradosByNroPatronal/${npatronal};
+// async getAllEmpresas(): Promise<any> {
+//   return this.handleRequest(async () => {
+//     const url = `${this.baseUrl}/modelo/getAllEmpresas`;
+//     const response = await firstValueFrom(
+//       this.httpService.get(url, {
+//         headers: {
+//           Authorization: `Bearer ${this.apiToken}`,
+//         },
+//       }),
+//     );
 
-      const response = await firstValueFrom(
-        this.httpService.get(url, {
-          headers: {
-            Authorization: Bearer ${this.apiToken},
-          },
-        }),
-      );
-      
-      return response.data.datosAsegurado;
-    }, 'getAseguradosByNroPatronal');
-  } */
+//     const empresas = Array.isArray(response.data) ? response.data : response.data.empresas || [];
 
+//     // Filter duplicates by 'EMP_NOM' property
+//     const uniqueEmpresasMap = new Map<string, any>();
+//     for (const empresa of empresas) {
+//       if (!uniqueEmpresasMap.has(empresa.EMP_NOM)) {
+//         uniqueEmpresasMap.set(empresa.EMP_NOM, empresa);
+//       }
+//     }
 
+//     const uniqueEmpresas = Array.from(uniqueEmpresasMap.values());
+
+//     return uniqueEmpresas;
+//   }, 'getAllEmpresas');
+// }
 }

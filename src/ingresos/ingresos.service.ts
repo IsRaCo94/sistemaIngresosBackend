@@ -34,14 +34,41 @@ export class IngresosService {
     });
   }
 
-  async create(
-    id_ingresos: Partial<IngresosEntity>,
-  ): Promise<IngresosEntity> {
-    const nuevoIngreso = this.ingresoRepository.create(id_ingresos);
-    return await this.ingresoRepository.save(nuevoIngreso)
+  // async create(
+  //   id_ingresos: Partial<IngresosEntity>,
+  // ): Promise<IngresosEntity> {
+  //   const nuevoIngreso = this.ingresoRepository.create(id_ingresos);
+  //   return await this.ingresoRepository.save(nuevoIngreso)
     
-  }
+  // }
+  async getMaxNumRecibo(): Promise<number> {
+    try {
+      const result = await this.ingresoRepository
+        .createQueryBuilder('ingresos')
+        .select('MAX(ingresos.num_recibo)', 'max')
+        .getRawOne();
 
+      const maxNum = result?.max ?? 0;
+      return Number(maxNum);
+    } catch (error) {
+      console.error('Error fetching max num_recibo:', error);
+      throw new InternalServerErrorException('Error fetching max num_recibo');
+    }
+  }
+  async create(ingresoData: Partial<IngresosEntity>): Promise<IngresosEntity> {
+    let nextNumRecibo = await this.getMaxNumRecibo(); // You need to implement this method to get max num_recibo
+  
+    if (!nextNumRecibo || nextNumRecibo < 1000) {
+      nextNumRecibo = 1000;
+    } else {
+      nextNumRecibo += 1;
+    }
+  
+    ingresoData.num_recibo = nextNumRecibo;
+  
+    const ingreso = this.ingresoRepository.create(ingresoData);
+    return this.ingresoRepository.save(ingreso);
+  }
 
 
 
@@ -84,21 +111,21 @@ export class IngresosService {
     return { deleted: true, message: `Ingreso con ID ${id_ingresos} dado de baja lógicamente.` };
   }
 
-  async getNextNumDeposito(): Promise<number> {
-    try {
-      const result = await this.ingresoRepository
-        .createQueryBuilder('ingresos')
-        .select('MAX(ingresos.num_depo)', 'max')
-        .where('ingresos.op_tipoemision = :value', { value: false })
-        .getRawOne();
+  // async getNextNumDeposito(): Promise<number> {
+  //   try {
+  //     const result = await this.ingresoRepository
+  //       .createQueryBuilder('ingresos')
+  //       .select('MAX(ingresos.num_depo)', 'max')
+  //       .where('ingresos.op_tipoemision = :value', { value: false })
+  //       .getRawOne();
 
-      const maxNum = result?.max ?? 0;
-      return Number(maxNum) + 1;
-    } catch (error) {
-      console.error('Error fetching next num_depo:', error);
-      throw new InternalServerErrorException('Error fetching next num_deposito');
-    }
-  }
+  //     const maxNum = result?.max ?? 0;
+  //     return Number(maxNum) + 1;
+  //   } catch (error) {
+  //     console.error('Error fetching next num_depo:', error);
+  //     throw new InternalServerErrorException('Error fetching next num_deposito');
+  //   }
+  // }
   async getMaxNumFactura(): Promise<number | null> {
     try {
       const result = await this.ingresoRepository
