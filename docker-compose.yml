@@ -1,17 +1,18 @@
 services:
-  postgres:
-    image: postgres:13
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: CUSTOMPOA01
-      TZ: America/La_Paz
+#  postgres:
+#     image: postgres:13
+#     restart: always
+#     environment:
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: postgres
+#       POSTGRES_DB: CUSTOMPOA01
+#       TZ: America/La_Paz
       
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#     ports:
+#       - "5432:5432"
+
 
   backend:
     build: .
@@ -26,17 +27,17 @@ services:
     #   timeout: 10s
     #   retries: 3
     environment:
-      DB_HOST: host.docker.internal # Esto permite acceder al host desde el contenedor. ojo antes: 'postgres'
+      DB_HOST: 10.0.10.224
       DB_PORT: 5432
       DB_USERNAME: postgres
-      DB_PASSWORD: postgres
-      DB_DATABASE: CUSTOMPOA01
+      DB_PASSWORD: Postgresql123
+      DB_DATABASE: POA_DEV08
       TZ: America/La_Paz
      
     ports:
       - "3000:3000"
-    depends_on:
-      - postgres
+    # depends_on:
+    #   - postgres
 
-volumes:
-  postgres_data:
+# volumes:
+#   postgres_data:

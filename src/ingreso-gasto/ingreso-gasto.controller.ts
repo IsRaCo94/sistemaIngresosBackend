@@ -9,8 +9,11 @@ import {
   Patch,
   ParseIntPipe,
   Query,
-  NotFoundException
+  NotFoundException,
+  Res,
+  HttpStatus
 } from '@nestjs/common';
+import { Response } from 'express';
 
 import { IngresoGastoService } from './ingreso-gasto.service';
 import { IngresoGastoEntity } from './ingreso-gasto.entity';
@@ -20,6 +23,10 @@ export class IngresoGastoController {
 
   constructor(
     private readonly ingresopagoservice: IngresoGastoService) { }
+     @Get()
+  obtenerAnioActual(): number {
+    return this.ingresopagoservice.obtenerAnioActual();
+  }
   @Post()
   async create(
     @Body() ingresopagoData: Partial<IngresoGastoEntity>,
@@ -56,7 +63,29 @@ export class IngresoGastoController {
     return { message: `Ingreso con ID ${id_gasto} ha sido marcado como eliminado.` };
   }
 
+  @Get('reporte/documento-presupuesto/:num_prev')
+  async generarReportePresupuesto(
+    @Param('num_prev') num_prev: string,
+    @Res() res: Response
+  ) {
+    try {
+      const pdfBuffer = await this.ingresopagoservice.generarReportePresupuesto(num_prev);
+      
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="reporte-presupuesto-${num_prev || 'general'}-${new Date().getTime()}.pdf"`,
+        'Content-Length': pdfBuffer.length,
+      });
+      
+      res.status(HttpStatus.OK).send(pdfBuffer);
+    } catch (error) {
+      console.error('Error generando reporte:', error);
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        message: 'Error al generar el reporte de presupuesto',
+        error: error.message,
+      });
+    }
+  }
 
-
+ 
 }
-

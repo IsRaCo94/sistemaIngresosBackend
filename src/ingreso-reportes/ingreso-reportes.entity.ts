@@ -10,7 +10,7 @@ export class IngresoReportesEntity {
   lugar: string
   @Column()
   fecha: Date
-  @Column()
+  @Column({ type: 'decimal', precision: 12, scale: 4 })
   monto: number
   @Column()
   cod_prove: string
@@ -32,15 +32,15 @@ export class IngresoReportesEntity {
   baja: boolean; // 'true' = dado de baja, 'false' = activo
   @Column()
   id_tipo_ingr_id: string;
-  @Column()
+  @Column({ type: 'decimal', precision: 12, scale: 4 })
   multas: number;
-  @Column()
+  @Column({ type: 'decimal', precision: 12, scale: 4 })
   intereses: number;
-  @Column()
+  @Column({ type: 'decimal', precision: 12, scale: 4 })
   aportes_patro: number;
-  @Column()
+  @Column({ type: 'decimal', precision: 12, scale: 4 })
   deposito_dema: number;
-  @Column()
+  @Column({ type: 'decimal', precision: 12, scale: 4 })
   amortizacion_pagos: number;
   @Column()
   cuenta: string;
@@ -74,7 +74,7 @@ export class IngresoReportesEntity {
   nombre: string;
   @Column()
   num_depo: number;
-  @Column()
+  @Column({ type: 'decimal', precision: 12, scale: 4 })
   importe_total: number;
 
 

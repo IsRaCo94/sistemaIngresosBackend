@@ -54,6 +54,16 @@ export class IngresoGastoEntity {
     id_num_clasif_id: string;
     @Column()
     des_clasif: string;
+    @Column()
+    gestion:string;
+    @Column()
+    idUsuario:string;
+    @Column()
+    usuario:string;
+    @Column()
+    rol:string;
+    @Column()
+    regional:string;
 
 
 

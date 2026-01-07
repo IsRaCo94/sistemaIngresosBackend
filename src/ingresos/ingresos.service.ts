@@ -111,21 +111,6 @@ export class IngresosService {
     return { deleted: true, message: `Ingreso con ID ${id_ingresos} dado de baja lógicamente.` };
   }
 
-  // async getNextNumDeposito(): Promise<number> {
-  //   try {
-  //     const result = await this.ingresoRepository
-  //       .createQueryBuilder('ingresos')
-  //       .select('MAX(ingresos.num_depo)', 'max')
-  //       .where('ingresos.op_tipoemision = :value', { value: false })
-  //       .getRawOne();
-
-  //     const maxNum = result?.max ?? 0;
-  //     return Number(maxNum) + 1;
-  //   } catch (error) {
-  //     console.error('Error fetching next num_depo:', error);
-  //     throw new InternalServerErrorException('Error fetching next num_deposito');
-  //   }
-  // }
   async getMaxNumFactura(): Promise<number | null> {
     try {
       const result = await this.ingresoRepository
@@ -512,6 +497,129 @@ async generateReportExcel(fecha: string): Promise<Buffer> {
   });
 }
 
+// async generateReporteRecibo(id_ingresos: number): Promise<Buffer> {
+//   const query = `
+//   SELECT
+//        num_recibo,
+//        fecha,
+//        lugar,
+//        fecha_reg,
+//        proveedor,
+//        detalle,
+//        tipo_ingres,
+//        monto,
+//        importe_total,
+//        servicio,
+//        estado
+//    FROM ingresos
+//    WHERE estado = 'CONSOLIDADO' AND baja = false AND id_ingresos = ${id_ingresos}
+//    ORDER BY fecha ASC`;
+
+//    const ingresosRaw = await this.ingresoRepository.query(query);
+//    const ingresos = ingresosRaw.map((item) => {
+//     function numeroALetras(num: number): string {
+//       const unidades = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
+//       const especiales = ["diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"];
+//       const decenas = ["", "diez", "veinte", "treinta", "cuarenta", "cincuenta", "sesenta", "setenta", "ochenta", "noventa"];
+//       const centenas = ["", "cien", "doscientos", "trescientos", "cuatrocientos", "quinientos", "seiscientos", "setecientos", "ochocientos", "novecientos"];
+    
+//       function convertirParte(n: number): string {
+//         if (n === 0) return "cero";
+//         if (n < 10) return unidades[n];
+//         if (n >= 10 && n < 20) return especiales[n - 10];
+//         if (n < 100) {
+//           let dec = Math.floor(n / 10);
+//           let uni = n % 10;
+//           if (dec === 2 && uni > 0) return "veinti" + unidades[uni];
+//           return decenas[dec] + (uni > 0 ? " y " + unidades[uni] : "");
+//         }
+//         if (n < 1000) {
+//           let cen = Math.floor(n / 100);
+//           let resto = n % 100;
+//           if (n === 100) return "cien";
+//           return centenas[cen] + (resto > 0 ? " " + convertirParte(resto) : "");
+//         }
+//         return "";
+//       }
+    
+//       function convertirMiles(n: number): string {
+//         if (n === 0) return "";
+//         if (n < 1000) return convertirParte(n);
+//         let miles = Math.floor(n / 1000);
+//         let resto = n % 1000;
+//         let textoMiles = "";
+//         if (miles === 1) {
+//           textoMiles = "mil";
+//         } else {
+//           textoMiles = convertirParte(miles) + " mil";
+//         }
+//         if (resto > 0) {
+//           textoMiles += " " + convertirParte(resto);
+//         }
+//         return textoMiles;
+//       }
+    
+//       function convertirMillones(n: number): string {
+//         if (n === 0) return "cero";
+//         let millones = Math.floor(n / 1000000);
+//         let resto = n % 1000000;
+//         let textoMillones = "";
+//         if (millones === 1) {
+//           textoMillones = "un millón";
+//         } else if (millones > 1) {
+//           textoMillones = convertirParte(millones) + " millones";
+//         }
+//         if (resto > 0) {
+//           textoMillones += " " + convertirMiles(resto);
+//         }
+//         return textoMillones;
+//       }
+    
+//       const entero = Math.floor(num);
+//       const decimal = Math.round((num - entero) * 100);
+    
+//       let textoEntero = convertirMillones(entero);
+//       let textoDecimal = decimal > 0 ? " con " + convertirParte(decimal) : " con cero";
+    
+//       return textoEntero + textoDecimal;
+//     }
+//        return {
+//            num_recibo: item.num_recibo,
+//            servicio: item.servicio,
+//            tipo_ingres: item.tipo_ingres,
+//            proveedor: item.proveedor,
+//            detalle: item.detalle,
+//            importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+//            fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
+//            fechaReporte: new Date().toLocaleDateString('es-ES'),
+//            importeTotalLetras: numeroALetras(Number(item.importe_total)),
+
+//        };
+//    });
+
+//    const templatePath = join(__dirname, '../../src/templates/recibo.odt');
+//    console.log(ingresos);
+
+//    const data = {
+//        //tipo_ingres,
+//        ingresos: ingresos
+//    };
+//    const options = { convertTo: 'pdf' };
+//    return new Promise<Buffer>(async (resolve, reject) => {
+//        carbone.render(templatePath, data, options, async (err, result) => {
+//            if (!err && result) {
+//                return resolve(result);
+//            }
+//            // Fallback: renderizar ODT y convertir con libreoffice-convert
+//            carbone.render(templatePath, data, (err2, odfBuffer) => {
+//                if (err2) return reject(err);
+//                this.convertWithLibreOffice(Buffer.from(odfBuffer), '.pdf')
+//                    .then(resolve)
+//                    .catch(() => reject(err));
+//            });
+//        });
+//    });
+//  }
 async generateReporteRecibo(id_ingresos: number): Promise<Buffer> {
   const query = `
   SELECT
@@ -594,7 +702,7 @@ async generateReporteRecibo(id_ingresos: number): Promise<Buffer> {
       const decimal = Math.round((num - entero) * 100);
     
       let textoEntero = convertirMillones(entero);
-      let textoDecimal = decimal > 0 ? " con " + convertirParte(decimal) : " con cero";
+      let textoDecimal = decimal > 0 ? ` ${decimal}/100` : " 00/100";
     
       return textoEntero + textoDecimal;
     }
@@ -635,7 +743,6 @@ async generateReporteRecibo(id_ingresos: number): Promise<Buffer> {
        });
    });
  }
-
   /**
    * Extrae datos de un PDF con formularios (AcroForm)
    */
@@ -983,27 +1090,7 @@ const extractMultilineValue = (pattern: RegExp): string | null => {
       return undefined;
     }
   }
-//   async importarExcel(file: Express.Multer.File): Promise<any> {
-//     if (!file) {
-//         throw new BadRequestException('No se subió ningún archivo.');
-//     }
-//     const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-//     const sheetName = workbook.SheetNames[0];
-//     const datos: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-//     // Puedes mapear y guardar cada registro en la base de datos
-//     let registrosImportados = 0;
-//     for (const row of datos) {
-//         if (Array.isArray(row)) {
-//             continue;
-//         }
-//         console.log('Importing row:', row);  // <-- Add this line to see the data
-//         const nuevo = this.ingresoRepository.create(row);
-//         await this.ingresoRepository.save(nuevo);
-//         registrosImportados++;
-//     }
-//     return { message: 'Importación exitosa', registros: registrosImportados };
-// }
 async importarExcel(file: Express.Multer.File): Promise<any> {
   if (!file) {
     throw new BadRequestException('No se subió ningún archivo.');
@@ -1023,92 +1110,142 @@ async importarExcel(file: Express.Multer.File): Promise<any> {
   }
   return { message: 'Procesamiento exitoso (sin guardar en base de datos)', registros: registrosProcesados };
 }
-// async importarExcel(file: Express.Multer.File): Promise<any> {
-//   if (!file) {
-//       throw new BadRequestException('No se subió ningún archivo.');
-//   }
-//   const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-//   const sheetName = workbook.SheetNames[0];
-//   const datos: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
-//   let registrosImportados = 0;
-//   for (const row of datos) {
-//       if (Array.isArray(row)) {
-//           continue;
-//       }
-//       console.log('Importing row:', row);
+async getDashboardSummary(): Promise<any> {
+  try {
+    // Consulta para obtener totales agrupados por lugar y tipo de emisión
+    const query = `
+      SELECT 
+        lugar,
+        tipo_emision,
+        COUNT(*) as total_registros,
+        SUM(importe_total) as total_importe,
+        SUM(CASE WHEN tipo_emision = 'FACTURA' THEN importe_total * 0.13 ELSE 0 END) as impuesto_total
+      FROM ingresos 
+      WHERE baja = false AND estado = 'CONSOLIDADO'
+      GROUP BY lugar, tipo_emision
+      ORDER BY lugar, tipo_emision
+    `;
 
-//       // Map Excel columns to entity fields explicitly
-//       const mappedIngreso: Partial<IngresosEntity> = {
-//         // Example mappings - adjust keys to your Excel column headers and entity properties
-//         num_depo: row['Nro.DEPOSITO'] ?? row['Nro.DEPOSITO'],
-//         proveedor: row['DESCRIPCIÓN'] ?? row['DESCRIPCIÓN'],
-//         importe_total: row['IMPORTE TOTAL'] ?? row['IMPORTE TOTAL'],
-//         fecha: row['FECHA'] ? new Date(row['FECHA']) : undefined,
-//         // Add other fields as needed
-//       };
+    const resultados = await this.ingresoRepository.query(query);
+    
+    // Calcular totales generales
+    const totalFacturas = resultados
+      .filter((r: any) => r.tipo_emision === 'FACTURA')
+      .reduce((sum: number, r: any) => sum + parseFloat(r.total_importe || 0), 0);
+    
+    const totalRecibos = resultados
+      .filter((r: any) => r.tipo_emision === 'RECIBO')
+      .reduce((sum: number, r: any) => sum + parseFloat(r.total_importe || 0), 0);
+    
+    const totalImpuestoFacturas = totalFacturas * 0.13;
 
-//       const nuevo = this.ingresoRepository.create(mappedIngreso);
-//       await this.ingresoRepository.save(nuevo);
-//       registrosImportados++;
-//   }
-//   return { message: 'Importación exitosa', registros: registrosImportados };
-// }
-// async importarExcel(file: Express.Multer.File): Promise<any> {
-//   if (!file) {
-//       throw new BadRequestException('No se subió ningún archivo.');
-//   }
-//   const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-//   const sheetName = workbook.SheetNames[0];
-//   const datos: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    return {
+      totalFacturas: parseFloat(totalFacturas.toFixed(2)),
+      totalRecibos: parseFloat(totalRecibos.toFixed(2)),
+      totalImpuestoFacturas: parseFloat(totalImpuestoFacturas.toFixed(2)),
+      totalGeneral: parseFloat((totalFacturas + totalRecibos).toFixed(2)),
+      totalesPorRegional: resultados.map((r: any) => ({
+        lugar: r.lugar,
+        tipo_emision: r.tipo_emision,
+        total_registros: parseInt(r.total_registros),
+        total_importe: parseFloat(r.total_importe || 0),
+        impuesto_total: r.tipo_emision === 'FACTURA' ? parseFloat(r.impuesto_total || 0) : 0
+      }))
+    };
+  } catch (error) {
+    console.error('Error en getDashboardSummary:', error);
+    throw new InternalServerErrorException('Error al obtener resumen del dashboard');
+  }
+}
+async getIngresosByTipoAndRegional(tipo_emision: string, lugar: string): Promise<any> {
+  try {
+    let query = this.ingresoRepository
+      .createQueryBuilder('i')
+      .select([
+        'i.lugar as lugar',
+        'i.tipo_emision as tipo_emision',
+        'COUNT(*) as total_registros',
+        'SUM(i.importe_total) as total_importe',
+        'SUM(CASE WHEN i.tipo_emision = \'FACTURA\' THEN i.importe_total * 0.13 ELSE 0 END) as impuesto_total'
+      ])
+      .where('i.baja = :baja', { baja: false })
+      .andWhere('i.estado = :estado', { estado: 'CONSOLIDADO' })
+      .groupBy('i.lugar')
+      .addGroupBy('i.tipo_emision')
+      .orderBy('i.lugar')
+      .addOrderBy('i.tipo_emision');
 
-//   // Helper to convert Excel serial date to JS Date
-//   const excelDateToJSDate = (serial: number): Date => {
-//     const utc_days = Math.floor(serial - 25569);
-//     const utc_value = utc_days * 86400;                                        
-//     const date_info = new Date(utc_value * 1000);
-//     const fractional_day = serial - Math.floor(serial) + 0.0000001;
-//     let total_seconds = Math.floor(86400 * fractional_day);
-//     const seconds = total_seconds % 60;
-//     total_seconds -= seconds;
-//     const hours = Math.floor(total_seconds / (60 * 60));
-//     const minutes = Math.floor(total_seconds / 60) % 60;
-//     return new Date(date_info.getFullYear(), date_info.getMonth(), date_info.getDate(), hours, minutes, seconds);
-//   };
+    if (tipo_emision) {
+      query = query.andWhere('i.tipo_emision = :tipo_emision', { tipo_emision });
+    }
 
-//   let registrosImportados = 0;
-//   for (const row of datos) {
-//       if (Array.isArray(row)) {
-//           continue;
-//       }
-//       console.log('Importing row:', row);
+    if (lugar) {
+      query = query.andWhere('i.lugar = :lugar', { lugar });
+    }
 
-//       // Convert Excel serial date to JS Date if needed
-//       let fecha: Date | undefined = undefined;
-//       if (typeof row['FECHA'] === 'number') {
-//         fecha = excelDateToJSDate(row['FECHA']);
-//       } else if (typeof row['FECHA'] === 'string') {
-//         fecha = new Date(row['FECHA']);
-//       }
+    const resultados = await query.getRawMany();
+    
+    console.log('Resultados por regional:', resultados);
 
-//       // Format importe_total as number with decimals
-//       let importe_total = Number(row['IMPORTE TOTAL']);
-//       if (isNaN(importe_total)) {
-//         importe_total = 0;
-//       }
+    return resultados.map(r => ({
+      lugar: r.lugar,
+      tipo_emision: r.tipo_emision,
+      total_registros: parseInt(r.total_registros) || 0,
+      total_importe: parseFloat(r.total_importe) || 0,
+      impuesto_total: parseFloat(r.impuesto_total) || 0
+    }));
+  } catch (error) {
+    console.error('Error en getIngresosByTipoAndRegional:', error);
+    throw new InternalServerErrorException('Error al obtener ingresos por tipo y regional');
+  }
+}
 
-//       const mappedIngreso: Partial<IngresosEntity> = {
-//         num_depo: row['Nro. DEPOSITO'] ?? row['Nro.DEPOSITO'],
-//         proveedor: row['DESCRIPCIÓN'] ?? row['DESCRIPCIÓN'],
-//         importe_total: importe_total,
-//         fecha: fecha,
-//         // Add other fields as needed
-//       };
+async getIngresosByRubros(lugar?: string): Promise<any> {
+  try {
+    let query = this.ingresoRepository
+      .createQueryBuilder('i')
+      .select([
+        'i.lugar as lugar',
+        'i.nombre as nombre_rubro',
+        'i.num_rubro as num_rubro', 
+        'COUNT(*) as total_registros',
+        'SUM(i.importe_total) as total_importe',
+        'SUM(CASE WHEN i.tipo_emision = \'FACTURA\' THEN i.importe_total * 0.13 ELSE 0 END) as total_impuesto'
+      ])
+      .where('i.baja = :baja', { baja: false })
+      .andWhere('i.estado = :estado', { estado: 'CONSOLIDADO' })
+      .andWhere('i.nombre IS NOT NULL') // Solo mostrar registros que tienen rubro asociado
+      .andWhere('i.num_rubro IS NOT NULL');
 
-//       const nuevo = this.ingresoRepository.create(mappedIngreso);
-//       await this.ingresoRepository.save(nuevo);
-//       registrosImportados++;
-//   }
-//   return { message: 'Importación exitosa', registros: registrosImportados };
-// }
+    if (lugar) {
+      query = query.andWhere('i.lugar = :lugar', { lugar });
+    }
+
+    const resultados = await query
+      .groupBy('i.lugar')
+      .addGroupBy('i.nombre')
+      .addGroupBy('i.num_rubro')
+      .orderBy('i.lugar')
+      .addOrderBy('SUM(i.importe_total)', 'DESC')
+      .getRawMany();
+    
+    console.log('Resultados rubros por regionales:', resultados);
+
+    return resultados.map(r => ({
+      lugar: r.lugar,
+      nombre_rubro: r.nombre_rubro || 'Sin Rubro',
+      num_rubro: r.num_rubro || 'N/A',
+      total_registros: parseInt(r.total_registros) || 0,
+      total_importe: parseFloat(r.total_importe) || 0,
+      total_impuesto: parseFloat(r.total_impuesto) || 0
+    }));
+  } catch (error) {
+    console.error('Error en getIngresosByRubros:', error);
+    throw new InternalServerErrorException('Error al obtener ingresos por rubros');
+  }
+}
+  obtenerAnioActual(): number {
+    return new Date().getFullYear();
+  }
 }

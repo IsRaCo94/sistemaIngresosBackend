@@ -30,6 +30,10 @@ export class IngresoGastoDetalleController {
   async findAll(): Promise<IngresoGastoDetalleEntity[]> {
     return this.detalleGastoservice.findAll();
   }
+    @Get('dashboard/ejecucion-por-partida')
+  async getEjecucionPorPartida() {
+    return await this.detalleGastoservice.getEjecucionPorPartida();
+  }
 
   @Get("/:id_gasto_det")
   async findOne(
@@ -38,6 +42,13 @@ export class IngresoGastoDetalleController {
     return this.detalleGastoservice.findOne(parseInt(id_gasto_det))
   }
 
+  @Get('by-gasto/:id_gasto')
+  async findByGastoId(
+    @Param("id_gasto") id_gasto: string,
+  ): Promise<IngresoGastoDetalleEntity[]> {
+    return this.detalleGastoservice.findByGastoId(parseInt(id_gasto));
+  }
+  
   @Put("/:id_gasto_det")
   async update(
     @Param("id_gasto_det") id_gasto_det: string,
@@ -55,6 +66,20 @@ export class IngresoGastoDetalleController {
     //Optionally return a message, but NO_CONTENT is common for successful DELETE
     return { message: `Ingreso con ID ${id_gasto_det} ha sido marcado como eliminado.` };
   }
+
+  // Endpoints para Dashboard de Ejecución de Gastos
+  @Get('dashboard/ejecucion-gastos')
+  async getDashboardEjecucionGastos() {
+    return await this.detalleGastoservice.getDashboardEjecucionGastos();
+  }
+
+  @Get('dashboard/resumen-general')
+  async getResumenGeneral() {
+    return await this.detalleGastoservice.getResumenGeneral();
+  }
+
+
+
 
 
 }

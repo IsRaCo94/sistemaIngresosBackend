@@ -80,5 +80,16 @@ export class IngresosEntity {
   importe_total: number;
   @Column()
   fecha_edicion: Date;
+  @Column()
+  idUsuario: string;
+  @Column()
+  usuario: string;
+  @Column()
+  regional: string;
+  @Column()
+  rol: string;
+  @Column()
+  gestion: number;
+
 
 }

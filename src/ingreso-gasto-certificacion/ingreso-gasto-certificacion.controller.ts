@@ -19,21 +19,16 @@ export class IngresoGastoCertificacionController {
 
   constructor(private certificacionservice: IngresoGastoCertificacionService) { }
 
-  @Post()
-  async create(@Body() certificacionData: Partial<IngresoGastoCertificacionEntity>): Promise<IngresoGastoCertificacionEntity> {
-    return this.certificacionservice.create(certificacionData);
-  }
-
   @Get('listar-certificaciones')
   async findAll(): Promise<IngresoGastoCertificacionEntity[]> {
     return this.certificacionservice.findAll();
   }
 
-  @Get("/:id_certificacion")
+  @Get("/:numeroCertificacion")
   async findOne(
-    @Param("id_certificacion") id_certificacion: string,
-  ): Promise<IngresoGastoCertificacionEntity | null> {
-      return this.certificacionservice.findOne(parseInt(id_certificacion, 10));
+    @Param("numeroCertificacion") numeroCertificacion: string,
+  ): Promise<any> {
+      return this.certificacionservice.findOne(numeroCertificacion);
 }
 
 }

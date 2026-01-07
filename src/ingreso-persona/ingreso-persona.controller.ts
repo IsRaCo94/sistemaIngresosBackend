@@ -51,10 +51,10 @@ export class IngresoPersonaController {
         );
       }
        @Delete('/:id_persona') // Use DELETE HTTP method
-     async borradologico(@Param('id_libreta', ParseIntPipe) id_libreta: number) {
-     await this.IngresoPersonaService.borradologico(id_libreta);
+     async borradologico(@Param('id_persona', ParseIntPipe) id_persona: number) {
+     await this.IngresoPersonaService.borradologico(id_persona);
      //Optionally return a message, but NO_CONTENT is common for successful DELETE
-      return { message: `Egreso con ID ${id_libreta} ha sido marcado como eliminado.` };
+      return { message: `Egreso con ID ${id_persona} ha sido marcado como eliminado.` };
    }
   
 }

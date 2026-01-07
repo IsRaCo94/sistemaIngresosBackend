@@ -58,30 +58,32 @@ export class IngresosController {
     if (!file) {
       throw new InternalServerErrorException('No se proporcionó archivo PDF');
     }
-    
+
     if (file.mimetype !== 'application/pdf') {
       throw new InternalServerErrorException('El archivo debe ser un PDF');
     }
 
     return this.ingresoService.extractPdfData(file.buffer);
   }
-
-
+  @Get()
+  obtenerAnioActual(): number {
+    return this.ingresoService.obtenerAnioActual();
+  }
   @Get('listar-ingresos')
   async findAll(): Promise<IngresosEntity[]> {
     return this.ingresoService.findAll();
   }
-// ... existing code ...
-@Get()
-async getLastNumRecibo(): Promise<number> {
-  try {
-    const maxNum = await this.ingresoService.getMaxNumRecibo();
-    return maxNum >= 1000 ? maxNum : 1000;
-  } catch (error) {
-    throw new InternalServerErrorException(error.message);
+  // ... existing code ...
+  @Get()
+  async getLastNumRecibo(): Promise<number> {
+    try {
+      const maxNum = await this.ingresoService.getMaxNumRecibo();
+      return maxNum >= 1000 ? maxNum : 1000;
+    } catch (error) {
+      throw new InternalServerErrorException(error.message);
+    }
   }
-}
-// ... existing code ...
+  // ... existing code ...
 
   @Get('maximonumFact')
   async getLastNumFactura(): Promise<number | null> {
@@ -93,10 +95,10 @@ async getLastNumRecibo(): Promise<number> {
   }
   @Get('reporte-informe-diario/:fecha/:lugar')
   async getReporteLugar(
-    @Param('fecha') fecha : string,
+    @Param('fecha') fecha: string,
     @Param('lugar') lugar: string,
-   
-  @Res() res: Response) {
+
+    @Res() res: Response) {
     try {
       const reportBuffer = await this.ingresoService.generateReportLugar(fecha, lugar);
       res.set({
@@ -112,9 +114,9 @@ async getLastNumRecibo(): Promise<number> {
   }
   @Get('reporte-informe-diario/:fecha')
   async getReporte(
-    @Param('fecha') fecha : string,
-   
-  @Res() res: Response) {
+    @Param('fecha') fecha: string,
+
+    @Res() res: Response) {
     try {
       const reportBuffer = await this.ingresoService.generateReport(fecha);
       res.set({
@@ -130,10 +132,10 @@ async getLastNumRecibo(): Promise<number> {
   }
   @Get('reporte-informe-diario-excel/:fecha/:lugar')
   async getReporteLugarExcel(
-    @Param('fecha') fecha : string,
+    @Param('fecha') fecha: string,
     @Param('lugar') lugar: string,
-   
-  @Res() res: Response) {
+
+    @Res() res: Response) {
     try {
       const reportBuffer = await this.ingresoService.generateReportLugarExcel(fecha, lugar);
       res.set({
@@ -150,9 +152,9 @@ async getLastNumRecibo(): Promise<number> {
 
   @Get('reporte-informe-diario-excel/:fecha')
   async getReporteExcel(
-    @Param('fecha') fecha : string,
-   
-  @Res() res: Response) {
+    @Param('fecha') fecha: string,
+
+    @Res() res: Response) {
     try {
       const reportBuffer = await this.ingresoService.generateReportExcel(fecha);
       res.set({
@@ -170,22 +172,22 @@ async getLastNumRecibo(): Promise<number> {
   async getReporteRecibo(
     @Param('id_ingresos') id_ingresos: number,
     @Res() res: Response) {
-      try {
-        const reportBuffer = await this.ingresoService.generateReporteRecibo(id_ingresos);
-        res.set({
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="reporte_ingresosDiarios_${id_ingresos}.pdf"`,
-          'Content-Length': reportBuffer.length,
-        });
-        res.send(reportBuffer);
-      } catch (error) {
-        console.error('Report generation error:', error);
-        res.status(500).json({ message: 'Error generating report', error: error.message, stack: error.stack });
-      }
+    try {
+      const reportBuffer = await this.ingresoService.generateReporteRecibo(id_ingresos);
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="reporte_ingresosDiarios_${id_ingresos}.pdf"`,
+        'Content-Length': reportBuffer.length,
+      });
+      res.send(reportBuffer);
+    } catch (error) {
+      console.error('Report generation error:', error);
+      res.status(500).json({ message: 'Error generating report', error: error.message, stack: error.stack });
     }
+  }
 
 
-  
+
   @Get("/:id_ingresos")
   async findOne(
     @Param("id_ingresos") id_ingresos: number,
@@ -224,4 +226,27 @@ async getLastNumRecibo(): Promise<number> {
   // async loginToExternalApi() {
   //   return this.ingresoExternoService.loginToExternalApi();
   // }
+
+  @Get('dashboard/by-tipo-regional')
+  @ApiResponse({ status: 200, description: 'Ingresos filtrados por tipo y regional' })
+  async getIngresosByTipoAndRegional(
+    @Query('tipo_emision') tipo_emision: string,
+    @Query('lugar') lugar: string,
+  ) {
+    return this.ingresoService.getIngresosByTipoAndRegional(tipo_emision, lugar);
+  }
+  @Get('dashboard/summary')
+  @ApiResponse({ status: 200, description: 'Resumen general del dashboard' })
+  async getDashboardSummary() {
+    return this.ingresoService.getDashboardSummary();
+  }
+
+  @Get('dashboard/by-rubros')
+  @ApiResponse({ status: 200, description: 'Resumen de ingresos agrupados por rubros' })
+  async getIngresosByRubros(
+    @Query('lugar') lugar?: string,
+  ) {
+    return this.ingresoService.getIngresosByRubros(lugar);
+  }
+
 }

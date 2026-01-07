@@ -28,41 +28,53 @@ export class IngresoReportesService {
     async generaReporteTipoIngreso(fechaInicio: string, fechaFin: string, lugar: string): Promise<Buffer> {
         const query = `
            SELECT 
-         
             fecha,
             lugar,
             fecha_reg,
             proveedor,
             detalle,
             tipo_ingres,
-            SUM(importe_total) as importe_total,
+            monto,
             estado,
-             SUM(importe_total) OVER () as total_montos,
-            SUM(COUNT(*)) OVER (PARTITION BY fecha) as total_registros_fecha,
-            SUM(SUM(importe_total)) OVER (PARTITION BY fecha) as total_diario,
-            SUM(SUM(importe_total)) OVER () as total_general
+            SUM(monto) OVER () as total_montos,
+            COUNT(*) OVER (PARTITION BY fecha) as total_registros_fecha,
+            SUM(monto) OVER (PARTITION BY fecha) as total_diario,
+            SUM(monto) OVER () as total_general
         FROM ingresos
         WHERE estado IS NOT NULL AND
         baja = false 
         AND CAST(fecha AS DATE) BETWEEN '${fechaInicio}' AND '${fechaFin}'
         AND lugar = '${lugar}' AND estado !='' 
-        GROUP BY fecha, lugar, fecha_reg, proveedor, detalle, tipo_ingres, estado, importe_total
-        ORDER BY fecha, importe_total ASC;`;
+        ORDER BY fecha, monto ASC;`;
 
         const ingresosRaw = await this.ingresoRepository.query(query);
 
+        console.log(`=== DEBUG REPORTE TIPO INGRESO ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Lugar: ${lugar}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.monto || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+            console.log(`Total desde query (primer registro): ${ingresosRaw[0].total_montos}`);
+            console.log('Primeros 3 registros:', ingresosRaw.slice(0, 3).map(r => ({
+                proveedor: r.proveedor,
+                monto: r.monto,
+                tipo_ingres: r.tipo_ingres,
+                estado: r.estado
+            })));
+        }
+
         const ingresos = ingresosRaw.map((item) => {
             return {
-                
                 total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 lugar: item.lugar,
                 tipo_ingres: item.tipo_ingres,
                 proveedor: item.proveedor,
                 detalle: item.detalle,
                 tipoIngreso: item.tipo_ingres,
-                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), // Cambiado de item.monto a item.monto_total
+                monto: Number(item.monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                importe_total: Number(item.monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 total_general: Number(item.total_general).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-                // total_registros: Number(item.total_registros),
                 total_diario: Number(item.total_diario).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
@@ -70,7 +82,6 @@ export class IngresoReportesService {
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 total_registros_fecha: Number(item.total_registros_fecha),
-                //totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.monto_total), 0), // También cambiado aquí
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
             };
         });
@@ -123,6 +134,15 @@ export class IngresoReportesService {
             ORDER BY fecha ASC`;
 
         const ingresosRaw = await this.ingresoRepository.query(query);
+
+        console.log(`=== DEBUG REPORTE POR TIPO INGRESO ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Tipo: ${tipo_ingres}, Lugar: ${lugar}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.importe_total || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+            console.log(`Total desde query (primer registro): ${ingresosRaw[0].total_montos}`);
+        }
         const ingresos = ingresosRaw.map((item) => {
             return {
                 total_montos: Number(item.total_montos).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -191,6 +211,14 @@ export class IngresoReportesService {
             ORDER BY CONCAT(num_rubro, ' - ',nombre), CAST(fecha AS DATE)`;
 
         const ingresosRaw = await this.ingresoRepository.query(query);
+
+        console.log(`=== DEBUG REPORTE RUBROS ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Lugar: ${lugar}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.importe_total || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+        }
         const ingresos = ingresosRaw.map((item) => {
             return {
                 lugar: item.lugar,
@@ -261,6 +289,14 @@ export class IngresoReportesService {
             ORDER BY CONCAT(num_rubro, ' - ',nombre), CAST(fecha AS DATE)`;
 
         const ingresosRaw = await this.ingresoRepository.query(query);
+
+        console.log(`=== DEBUG REPORTE POR RUBRO ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Nombre: ${nombre}, Lugar: ${lugar}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.importe_total || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+        }
         const ingresos = ingresosRaw.map((item) => {
             return {
                 lugar: item.lugar,
@@ -345,7 +381,7 @@ export class IngresoReportesService {
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.monto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -460,15 +496,29 @@ export class IngresoReportesService {
             ORDER BY CONCAT(num_rubro, ' - ', nombre)`;
 
         const ingresosRaw = await this.ingresoRepository.query(query);
+
+        console.log(`=== DEBUG REPORTE GENERAL RUBROS POR LUGAR ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Lugar: ${lugar}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.totalmonto || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+            console.log('Primeros 3 registros:', ingresosRaw.slice(0, 3).map(r => ({
+                rubros: r.rubros,
+                totalMonto: r.totalmonto,
+                lugar: r.lugar
+            })));
+        }
+
         const ingresos = ingresosRaw.map((item) => {
             return {
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
             };
         });
@@ -519,16 +569,28 @@ export class IngresoReportesService {
 
         const ingresosRaw = await this.ingresoRepository.query(query);
 
+        console.log(`=== DEBUG REPORTE GENERAL RUBROS ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.totalmonto || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+            console.log('Primeros 3 registros:', ingresosRaw.slice(0, 3).map(r => ({
+                rubros: r.rubros,
+                totalMonto: r.totalmonto,
+                lugar: r.lugar
+            })));
+        }
 
         const ingresos = ingresosRaw.map((item) => {
             return {
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
             };
         });
@@ -636,10 +698,11 @@ export class IngresoReportesService {
                 proveedor,
                 detalle,
                 tipo_ingres,
+                monto,
                 importe_total,
                 estado,
 		        tipo_emision,
-                SUM(importe_total) OVER () as total_montos
+                SUM(monto) OVER () as total_montos
         FROM ingresos
         WHERE estado IS NOT NULL AND
                 baja = false 
@@ -649,6 +712,20 @@ export class IngresoReportesService {
 
         const ingresosRaw = await this.ingresoRepository.query(query);
 
+        console.log(`=== DEBUG REPORTE EMISION PDF ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Tipo: ${tipo_emision}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.monto || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+            console.log(`Total desde query (primer registro): ${ingresosRaw[0].total_montos}`);
+            console.log('Primeros 3 registros:', ingresosRaw.slice(0, 3).map(r => ({
+                proveedor: r.proveedor,
+                monto: r.monto,
+                importe_total: r.importe_total,
+                estado: r.estado
+            })));
+        }
 
         const ingresos = ingresosRaw.map((item) => {
             return {
@@ -659,7 +736,8 @@ export class IngresoReportesService {
                 tipoIngreso: item.tipo_ingres,
                 tipo_emision: item.tipo_emision,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
-                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
+                monto: Number(item.monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
@@ -704,21 +782,29 @@ async generaReporteTipoIngresoExcel(fechaInicio: string, fechaFin: string, lugar
             proveedor,
             detalle,
             tipo_ingres,
-            SUM(importe_total) as importe_total,
+            monto,
             estado,
-            SUM(importe_total) OVER () as total_montos,
-            SUM(COUNT(*)) OVER (PARTITION BY fecha) as total_registros_fecha,
-            SUM(SUM(importe_total)) OVER (PARTITION BY fecha) as total_diario,
-            SUM(SUM(importe_total)) OVER () as total_general
+            SUM(monto) OVER () as total_montos,
+            COUNT(*) OVER (PARTITION BY fecha) as total_registros_fecha,
+            SUM(monto) OVER (PARTITION BY fecha) as total_diario,
+            SUM(monto) OVER () as total_general
         FROM ingresos
         WHERE estado IS NOT NULL AND
         baja = false 
         AND CAST(fecha AS DATE) BETWEEN '${fechaInicio}' AND '${fechaFin}'
         AND lugar = '${lugar}' AND estado !='' 
-        GROUP BY fecha, lugar, fecha_reg, proveedor, detalle, tipo_ingres, estado, importe_total
-        ORDER BY fecha, importe_total ASC;`;
+        ORDER BY fecha, monto ASC;`;
 
     const ingresosRaw = await this.ingresoRepository.query(query);
+
+    console.log(`=== DEBUG REPORTE TIPO INGRESO EXCEL ===`);
+    console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Lugar: ${lugar}`);
+    console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+    if (ingresosRaw.length > 0) {
+        const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.monto || 0), 0);
+        console.log(`Total calculado manualmente: ${totalCalculado}`);
+        console.log(`Total desde query (primer registro): ${ingresosRaw[0].total_montos}`);
+    }
 
     // Format data for Excel template
         const ingresos = ingresosRaw.map((item) => {
@@ -730,7 +816,8 @@ async generaReporteTipoIngresoExcel(fechaInicio: string, fechaFin: string, lugar
                 detalle: item.detalle,
                 tipo_ingres: item.tipo_ingres,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
-                importe_total: Number(item.importe_total),  // Cambiado de item.monto a item.totalmonto
+                monto: Number(item.monto),
+                importe_total: Number(item.monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 total_general: Number(item.total_general).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
@@ -805,7 +892,7 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 fecha: new Date(item.fecha).toLocaleDateString('es-ES'),
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.monto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.importe_total), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
 
             };
@@ -1130,15 +1217,24 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
             ORDER BY CONCAT(num_rubro, ' - ', nombre)`;
 
         const ingresosRaw = await this.ingresoRepository.query(query);
+
+        console.log(`=== DEBUG REPORTE GENERAL RUBROS POR LUGAR EXCEL ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}, Lugar: ${lugar}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.totalmonto || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+        }
+
         const ingresos = ingresosRaw.map((item) => {
             return {
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
             };
@@ -1193,17 +1289,24 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
 
         const ingresosRaw = await this.ingresoRepository.query(query);
 
+        console.log(`=== DEBUG REPORTE GENERAL RUBROS EXCEL ===`);
+        console.log(`Fechas: ${fechaInicio} a ${fechaFin}`);
+        console.log(`Total registros encontrados: ${ingresosRaw.length}`);
+        if (ingresosRaw.length > 0) {
+            const totalCalculado = ingresosRaw.reduce((sum, item) => sum + Number(item.totalmonto || 0), 0);
+            console.log(`Total calculado manualmente: ${totalCalculado}`);
+        }
 
         const ingresos = ingresosRaw.map((item) => {
             return {
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
                 lugar: item.lugar,
                 rubros: item.rubros,
-                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
+                importe_total: Number(item.totalmonto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
-                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado aquí también
+                totalMonto: ingresosRaw.reduce((acc, cur) => acc + Number(cur.totalmonto), 0).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaReporte: new Date().toLocaleDateString('es-ES'),
             };
         });
@@ -1313,18 +1416,17 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
                 proveedor,
                 detalle,
                 tipo_ingres,
+                monto,
                 importe_total,
                 estado,
-		        tipo_emision,
-                SUM(importe_total) OVER () as total_montos
+		tipo_emision,
+                SUM(monto) OVER () as total_montos
         FROM ingresos
         WHERE estado IS NOT NULL AND
                 baja = false 
                 AND CAST(fecha AS DATE) BETWEEN '${fechaInicio}' AND '${fechaFin}'
                 AND tipo_emision = '${tipo_emision}'
-        ORDER BY fecha ASC`;
-
-        const ingresosRaw = await this.ingresoRepository.query(query);
+        ORDER BY fecha ASC`;        const ingresosRaw = await this.ingresoRepository.query(query);
 
 
         const ingresos = ingresosRaw.map((item) => {
@@ -1336,7 +1438,8 @@ async generaReportePorTipoIngresoExcel(fechaInicio: string, fechaFin: string, ti
                 tipoIngreso: item.tipo_ingres,
                 tipo_emision: item.tipo_emision,
                 fecha_reg: new Date(item.fecha_reg).toLocaleDateString('es-ES'),
-                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),  // Cambiado de item.monto a item.totalmonto
+                monto: Number(item.monto).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+                importe_total: Number(item.importe_total).toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
                 fechaInicio: fechaInicio,
                 fechaFin: fechaFin,
                 totalRegistros: ingresosRaw.length,
