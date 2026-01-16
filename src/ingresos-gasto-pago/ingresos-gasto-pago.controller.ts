@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Res, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put, Res, Query, Patch } from '@nestjs/common';
 import { IngresosGastoPagoService } from './ingresos-gasto-pago.service';
 import {IngresosGastoPagoEntity} from './ingresos-gasto-pago.entity';
 import { Response } from 'express';
@@ -64,6 +64,14 @@ export class IngresosGastoPagoController {
       console.error('Error generando reporte de pagos:', error);
       res.status(500).json({ error: 'Error interno al generar el reporte' });
     }
+  }
+
+  @Patch(':id_pago/cambiar-estado')
+  async cambiarEstado(
+    @Param('id_pago', ParseIntPipe) id_pago: number,
+    @Body() body: { nuevoEstado: string; usuario: string }
+  ) {
+    return this.ingresopagoservice.cambiarEstado(id_pago, body.nuevoEstado, body.usuario);
   }
 
 }

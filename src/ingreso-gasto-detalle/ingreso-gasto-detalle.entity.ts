@@ -4,6 +4,8 @@ import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
 export class IngresoGastoDetalleEntity {
     @PrimaryGeneratedColumn()
     id_gasto_det: number;
+    @Column({ nullable: true })
+    id_detalle: number; // ID del detalle de certificación original
     @Column()
     id_gasto_id: number;
     @Column()
@@ -107,4 +109,19 @@ export class IngresoGastoDetalleEntity {
     saldoPresuTotal: number;
     @Column()
     costoTotalModif:number;
+    
+    // Campos para rastrear usuarios por cada estado
+    @Column({ nullable: true })
+    usuario_elaboro: string;
+    @Column({ type: 'timestamp', nullable: true })
+    fecha_elaboro: Date;
+    @Column({ nullable: true })
+    usuario_verifico: string;
+    @Column({ type: 'timestamp', nullable: true })
+    fecha_verifico: Date;
+    @Column({ nullable: true })
+    usuario_aprobo: string;
+    @Column({ type: 'timestamp', nullable: true })
+    fecha_aprobo: Date;
+ 
 }

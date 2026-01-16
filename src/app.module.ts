@@ -30,8 +30,12 @@ import { IngresoGastoReversionModule } from './ingreso-gasto-reversion/ingreso-g
 import { IngresosPagoVariosModule } from './ingresos-pago-varios/ingresos-pago-varios.module';
 import { IngresoPagosReporteModule } from './ingreso-pagos-reporte/ingreso-pagos-reporte.module';
 import { IngresosCategoriaProgrModule } from './ingresos-categoria-progr/ingresos-categoria-progr.module';
+import { GastosObservacionesModule } from './gastos-observaciones/gastos-observaciones.module';
+import { PagosObservacionesModule } from './pagos-observaciones/pagos-observaciones.module';
 @Module({
-  imports: [IngresosCategoriaProgrModule,
+  imports: [PagosObservacionesModule,
+GastosObservacionesModule,
+IngresosCategoriaProgrModule,
 IngresoPagosReporteModule,
 IngresosPagoVariosModule,
 IngresoGastoReversionModule,
@@ -91,7 +95,7 @@ IngresosModule,
       port: Number(process.env.DB_PORT) || 5432,
       username: process.env.DB_USERNAME || 'postgres',
       password: process.env.DB_PASSWORD || 'Postgresql123',
-      database: process.env.DB_DATABASE || 'POA_DEV08',
+      database: process.env.DB_DATABASE || 'POA_DEV12',
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
       synchronize: false,
     }),

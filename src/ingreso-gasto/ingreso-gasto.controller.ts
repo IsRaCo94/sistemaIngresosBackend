@@ -87,5 +87,16 @@ export class IngresoGastoController {
     }
   }
 
+  @Patch('cambiar-estado/:id_gasto')
+  async cambiarEstado(
+    @Param('id_gasto') id_gasto: string,
+    @Body() datosEstado: { estado: string; usuario: string; idUsuario: string; regional: string; rol: string }
+  ): Promise<IngresoGastoEntity | null> {
+    return this.ingresopagoservice.cambiarEstado(
+      parseInt(id_gasto, 10),
+      datosEstado
+    );
+  }
+
  
 }

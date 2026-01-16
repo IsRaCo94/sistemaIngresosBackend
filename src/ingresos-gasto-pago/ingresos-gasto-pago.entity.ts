@@ -80,5 +80,23 @@ export class IngresosGastoPagoEntity {
     rol:string;
     @Column()
     regional:string;
+    
+    // Campos para rastrear usuarios por cada estado
+    @Column({ nullable: true })
+    usuario_elaboro: string;
+    @Column({ type: 'timestamp', nullable: true })
+    fecha_elaboro: Date;
+    @Column({ nullable: true })
+    usuario_verifico: string;
+    @Column({ type: 'timestamp', nullable: true })
+    fecha_verifico: Date;
+    @Column({ nullable: true })
+    usuario_aprobo: string;
+    @Column({ type: 'timestamp', nullable: true })
+    fecha_aprobo: Date;
+    @Column({ nullable: true })
+    usuario_firmo: string;
+    @Column({ type: 'timestamp', nullable: true })
+    fecha_firmo: Date;
 
 }

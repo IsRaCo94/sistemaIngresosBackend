@@ -31,7 +31,7 @@ services:
       DB_PORT: 5432
       DB_USERNAME: postgres
       DB_PASSWORD: Postgresql123
-      DB_DATABASE: POA_DEV08
+      DB_DATABASE: POA_DEV12
       TZ: America/La_Paz
      
     ports:

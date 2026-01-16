@@ -87,6 +87,15 @@ export class IngresosGastoPagoDetService {
         costoTotal,                          // saldo restante después del descuento
         saldo_presupuestario: costoTotal,    // mantener sincronizado si este campo representa el saldo restante
         baja: payload.baja ?? false,
+        // Copiar campos de usuario/firma del pago padre
+        usuario_elaboro: pago.usuario_elaboro,
+        fecha_elaboro: pago.fecha_elaboro,
+        usuario_verifico: pago.usuario_verifico,
+        fecha_verifico: pago.fecha_verifico,
+        usuario_aprobo: pago.usuario_aprobo,
+        fecha_aprobo: pago.fecha_aprobo,
+        usuario_firmo: pago.usuario_firmo,
+        fecha_firmo: pago.fecha_firmo,
       });
       const detSaved = await manager.getRepository(IngresosGastoPagoDetEntity).save(det);
 
@@ -114,6 +123,19 @@ export class IngresosGastoPagoDetService {
 
     // Si no cambia el importe, actualiza normalmente
     if (!cambiaImporte) {
+      // Buscar el pago padre para copiar los campos de usuario/firma
+      const pago = await this.pagoRepo.findOne({ where: { id_pago: detActual.id_pago } });
+      if (pago) {
+        payload.usuario_elaboro = pago.usuario_elaboro;
+        payload.fecha_elaboro = pago.fecha_elaboro;
+        payload.usuario_verifico = pago.usuario_verifico;
+        payload.fecha_verifico = pago.fecha_verifico;
+        payload.usuario_aprobo = pago.usuario_aprobo;
+        payload.fecha_aprobo = pago.fecha_aprobo;
+        payload.usuario_firmo = pago.usuario_firmo;
+        payload.fecha_firmo = pago.fecha_firmo;
+      }
+      
       await this.detRepo.update(id_pago_det, payload);
       const actualizado = await this.detRepo.findOne({ where: { id_pago_det } });
       if (!actualizado) {
@@ -152,6 +174,15 @@ export class IngresosGastoPagoDetService {
         saldoPresu: saldoRevertido,
         costoTotal,
         saldo_presupuestario: costoTotal,
+        // Copiar campos de usuario/firma del pago padre
+        usuario_elaboro: pago.usuario_elaboro,
+        fecha_elaboro: pago.fecha_elaboro,
+        usuario_verifico: pago.usuario_verifico,
+        fecha_verifico: pago.fecha_verifico,
+        usuario_aprobo: pago.usuario_aprobo,
+        fecha_aprobo: pago.fecha_aprobo,
+        usuario_firmo: pago.usuario_firmo,
+        fecha_firmo: pago.fecha_firmo,
       });
 
       // Actualizar pago principal
@@ -375,6 +406,39 @@ export class IngresosGastoPagoDetService {
 
     // Generar reporte de órdenes de pago por número de preventivo
     async generateOrdenPagoReport(numPrev: string, factura:string, orden_pago:number, contrato:string, contrato_modf:string,  forceRetenCeroTemplate = false): Promise<Buffer> {
+      console.log('=== generateOrdenPagoReport ===');
+      console.log('Params:', { numPrev, factura, orden_pago, contrato, contrato_modf });
+      
+      // Primero, obtener el id_pago más reciente
+      const subQuery = `
+        SELECT MAX(id_pago) as max_id
+        FROM gastos_pagos 
+        WHERE num_prev = '${numPrev}' 
+        AND (baja = false OR baja IS NULL)
+      `;
+      const maxIdResult = await this.detRepo.query(subQuery);
+      console.log('Subconsulta MAX(id_pago):', maxIdResult);
+      
+      // Consulta para ver TODOS los registros y sus valores
+      const testQuery = `
+        SELECT 
+          det.id_pago_det,
+          pago.id_pago,
+          det.factura,
+          det.orden_pago,
+          det.contrato,
+          det.contrato_modf,
+          det.proveedor,
+          det.detalle
+        FROM gastos_pagos_det det
+        INNER JOIN gastos_pagos pago ON det.id_pago = pago.id_pago
+        WHERE pago.num_prev = '${numPrev}' 
+        AND (det.baja = false OR det.baja IS NULL)
+        AND (pago.baja = false OR pago.baja IS NULL)
+      `;
+      const testResult = await this.detRepo.query(testQuery);
+      console.log('Registros encontrados:', testResult);
+      
       const query = `
          SELECT 
           det.orden_pago,
@@ -411,18 +475,32 @@ export class IngresosGastoPagoDetService {
           pago."fechaElab",
           pago."fechaRec",
           det.nombre,
-          det.cargo
+          det.cargo,
+          pago.id_pago as pago_id_pago
       FROM gastos_pagos_det det
       INNER JOIN gastos_pagos pago ON det.id_pago = pago.id_pago
      WHERE pago.num_prev = '${numPrev}' 
-  AND det.baja = false 
+  AND (det.baja = false OR det.baja IS NULL)
+  AND (pago.baja = false OR pago.baja IS NULL)
   AND det.factura = '${factura}'
   AND det.orden_pago = '${orden_pago}'
   AND det.orden_pago IS NOT NULL 
-  AND (det.contrato = '${contrato}' OR det.contrato_modf = '${contrato_modf}')
+  AND (COALESCE(det.contrato, 'NO') = '${contrato}' OR COALESCE(det.contrato_modf, 'NO') = '${contrato_modf}')
+  AND pago.id_pago = (
+    SELECT MAX(id_pago) 
+    FROM gastos_pagos 
+    WHERE num_prev = '${numPrev}' 
+    AND (baja = false OR baja IS NULL)
+  )
 ORDER BY det.fecha ASC`;
 
+      console.log('Query:', query);
       const resultadosRaw = await this.detRepo.query(query);
+      console.log('Resultados:', resultadosRaw.length, 'registros');
+      
+      if (resultadosRaw.length > 0) {
+        console.log('Primer registro:', resultadosRaw[0]);
+      }
       function numeroALetras(num: number): string {
         const unidades = ["", "uno", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve"];
         const especiales = ["diez", "once", "doce", "trece", "catorce", "quince", "dieciséis", "diecisiete", "dieciocho", "diecinueve"];
@@ -1020,12 +1098,19 @@ async generateOrdenPagoSinFac(numPrev: string, factura: string, orden_pago: numb
       gpv.monto as monto_varios
     FROM gastos_pagos_det det
     INNER JOIN gastos_pagos pago ON det.id_pago = pago.id_pago
-    LEFT JOIN gastos_pagos_varios gpv ON det.id_pago_det = gpv.id_gastos_pagos_det_id AND gpv.baja = false
+    LEFT JOIN gastos_pagos_varios gpv ON det.id_pago_det = gpv.id_gastos_pagos_det_id AND (gpv.baja = false OR gpv.baja IS NULL)
     WHERE pago.num_prev = '${numPrev}'
-      AND det.baja = false
+      AND (det.baja = false OR det.baja IS NULL)
+      AND (pago.baja = false OR pago.baja IS NULL)
       AND det.factura = '${factura}'
       AND det.orden_pago = '${orden_pago}'
       AND det.orden_pago IS NOT NULL
+      AND pago.id_pago = (
+        SELECT MAX(id_pago) 
+        FROM gastos_pagos 
+        WHERE num_prev = '${numPrev}' 
+        AND (baja = false OR baja IS NULL)
+      )
     ORDER BY det.fecha ASC, gpv.id_varios ASC
   `;
 

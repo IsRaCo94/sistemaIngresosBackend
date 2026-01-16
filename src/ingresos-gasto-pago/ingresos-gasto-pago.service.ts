@@ -2,6 +2,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IngresosGastoPagoEntity } from './ingresos-gasto-pago.entity';
+import { IngresosGastoPagoDetEntity } from '../ingresos-gasto-pago-detalle/ingresos-gasto-pago-det.entity';
 import { Repository } from 'typeorm';
 import { join } from 'path';
 import * as carbone from 'carbone';
@@ -10,8 +11,12 @@ import * as libreofficeConvert from 'libreoffice-convert';
 @Injectable()
 export class IngresosGastoPagoService {
 
-    constructor(@InjectRepository(IngresosGastoPagoEntity)
-    private readonly ingresoGastoRepository: Repository<IngresosGastoPagoEntity>) {
+    constructor(
+        @InjectRepository(IngresosGastoPagoEntity)
+        private readonly ingresoGastoRepository: Repository<IngresosGastoPagoEntity>,
+        @InjectRepository(IngresosGastoPagoDetEntity)
+        private readonly detallePagoRepository: Repository<IngresosGastoPagoDetEntity>,
+    ) {
       process.env.LIBREOFFICE_BIN = '/usr/bin/soffice';
     }
 
@@ -157,16 +162,33 @@ export class IngresosGastoPagoService {
      pag.presupuesto_inicial,
      pag.cantidad,
      pag.descripcion,
-     pag.partida
+      pag.partida,
+      det.c_31,
+      det."costoTotal",
+      pag.usuario_elaboro,
+      pag.fecha_elaboro,
+      pag.usuario_verifico,
+      pag.fecha_verifico,
+      pag.usuario_aprobo,
+      pag.fecha_aprobo,
+      pag.usuario_firmo,
+      pag.fecha_firmo
    
                FROM gastos_pagos_det det
                JOIN gastos_pagos pag ON det.id_pago = pag.id_pago
              
-               WHERE (pag.baja IS NULL OR pag.baja = false) AND (det.baja IS NULL OR det.baja = false)`;
+               WHERE (pag.baja IS NULL OR pag.baja = false) 
+               AND (det.baja IS NULL OR det.baja = false)`;
     if (num_prev) {
-      query += ` AND pag.num_prev = '${num_prev}'`;
+      // Solo traer los detalles del registro más reciente con este num_prev
+      query += ` AND pag.id_pago = (
+        SELECT MAX(id_pago) 
+        FROM gastos_pagos 
+        WHERE num_prev = '${num_prev}' 
+        AND (baja IS NULL OR baja = false)
+      )`;
     }
-    query += ' ORDER BY pag."fechaElab" DESC, det.id_pago_det DESC';
+    query += ' ORDER BY det.id_pago_det ASC';
     const rows = await this.ingresoGastoRepository.query(query);
 
     const pagos = rows.map(r => ({
@@ -244,6 +266,14 @@ export class IngresosGastoPagoService {
       partida: r.partida || '',
       cantidad: Number(r.cantidad || 0).toLocaleString('es-ES', { minimumFractionDigits: 2 }),
       descripcion: r.descripcion || '',
+      usuario_elaboro: r.usuario_elaboro || '',
+      fecha_elaboro: r.fecha_elaboro ? new Date(r.fecha_elaboro).toLocaleDateString('es-ES') : '',
+      usuario_verifico: r.usuario_verifico || '',
+      fecha_verifico: r.fecha_verifico ? new Date(r.fecha_verifico).toLocaleDateString('es-ES') : '',
+      usuario_aprobo: r.usuario_aprobo || '',
+      fecha_aprobo: r.fecha_aprobo ? new Date(r.fecha_aprobo).toLocaleDateString('es-ES') : '',
+      usuario_firmo: r.usuario_firmo || '',
+      fecha_firmo: r.fecha_firmo ? new Date(r.fecha_firmo).toLocaleDateString('es-ES') : '',
     }));
 
     const totalImporte = rows.reduce((a, c) => a + Number(c.importe || 0), 0);
@@ -262,6 +292,8 @@ export class IngresosGastoPagoService {
       totalDescuentos: totalDescuentos.toLocaleString('es-ES', { minimumFractionDigits: 2 }),
       totalImporteLetras: numeroALetras(totalImporte).toUpperCase() + ' BOLIVIANOS',
       totalLiquidoPagableLetras: numeroALetras(totalLiquidoPagable).toUpperCase() + ' BOLIVIANOS',
+      // Importe en letras del primer registro (no el total)
+      importeLetras: rows.length > 0 ? numeroALetras(Number(rows[0].importe || 0)).toUpperCase() + ' BOLIVIANOS' : '',
       fechaHoraReporte: `${fechaActual.toLocaleDateString('es-ES')} ${fechaActual.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`,
       num_prev: num_prev || 'TODOS',
       gestion: new Date().getFullYear(),
@@ -279,5 +311,82 @@ export class IngresosGastoPagoService {
         });
       });
     });
+  }
+
+  async cambiarEstado(id_pago: number, nuevoEstado: string, usuario: string): Promise<IngresosGastoPagoEntity> {
+    // Obtener el registro original
+    const pagoOriginal = await this.ingresoGastoRepository.findOne({ where: { id_pago } });
+    
+    if (!pagoOriginal) {
+      throw new NotFoundException(`Pago con ID ${id_pago} no encontrado`);
+    }
+
+    console.log('=== CREAR NUEVO REGISTRO DE PAGO CON NUEVO ESTADO ===');
+    console.log('ID original:', id_pago);
+    console.log('Estado original:', pagoOriginal.estado);
+    console.log('Nuevo estado:', nuevoEstado);
+
+    const ahora = new Date();
+
+    // Crear un NUEVO registro copiando todos los datos del original
+    const nuevoPago = this.ingresoGastoRepository.create({
+      ...pagoOriginal,
+      id_pago: undefined, // Esto hará que se genere un nuevo ID
+      estado: nuevoEstado,
+    });
+    
+    // Agregar el usuario según el nuevo estado (preservando los anteriores)
+    switch (nuevoEstado) {
+      case 'VERIFICADO':
+        nuevoPago.usuario_verifico = usuario;
+        nuevoPago.fecha_verifico = ahora;
+        break;
+      case 'APROBADO':
+        nuevoPago.usuario_aprobo = usuario;
+        nuevoPago.fecha_aprobo = ahora;
+        break;
+      case 'FIRMADO':
+        nuevoPago.usuario_firmo = usuario;
+        nuevoPago.fecha_firmo = ahora;
+        break;
+    }
+
+    // Guardar el NUEVO registro
+    const pagoGuardado = await this.ingresoGastoRepository.save(nuevoPago);
+
+    console.log('✅ NUEVO REGISTRO DE PAGO CREADO');
+    console.log('Nuevo ID:', pagoGuardado.id_pago);
+    console.log('Estado:', pagoGuardado.estado);
+    console.log('usuario_elaboro:', pagoGuardado.usuario_elaboro);
+    console.log('usuario_verifico:', pagoGuardado.usuario_verifico);
+    console.log('usuario_aprobo:', pagoGuardado.usuario_aprobo);
+    console.log('usuario_firmo:', pagoGuardado.usuario_firmo);
+
+    // Copiar también todos los detalles del pago original al nuevo pago
+    const detallesOriginales = await this.detallePagoRepository.find({
+      where: { id_pago: id_pago }
+    });
+
+    for (const detalleOriginal of detallesOriginales) {
+      const nuevoDetalle = this.detallePagoRepository.create({
+        ...detalleOriginal,
+        id_pago_det: undefined, // Generar nuevo ID
+        id_pago: pagoGuardado.id_pago, // Asociar al nuevo pago
+        estado: pagoGuardado.estado, // Copiar el mismo estado del pago padre
+        usuario_elaboro: pagoGuardado.usuario_elaboro,
+        fecha_elaboro: pagoGuardado.fecha_elaboro,
+        usuario_verifico: pagoGuardado.usuario_verifico,
+        fecha_verifico: pagoGuardado.fecha_verifico,
+        usuario_aprobo: pagoGuardado.usuario_aprobo,
+        fecha_aprobo: pagoGuardado.fecha_aprobo,
+        usuario_firmo: pagoGuardado.usuario_firmo,
+        fecha_firmo: pagoGuardado.fecha_firmo,
+      });
+      await this.detallePagoRepository.save(nuevoDetalle);
+    }
+
+    console.log(`✅ ${detallesOriginales.length} detalles copiados al nuevo registro con estado ${pagoGuardado.estado}`);
+
+    return pagoGuardado;
   }
 }

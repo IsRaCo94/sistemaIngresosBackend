@@ -2,20 +2,54 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IngresoGastoDetalleEntity } from './ingreso-gasto-detalle.entity';
+import { IngresoGastoEntity } from '../ingreso-gasto/ingreso-gasto.entity';
 import { Repository } from 'typeorm';
 
 @Injectable()
 export class IngresoGastoDetalleService {
   certificacionRepository: any;
 
-    constructor(@InjectRepository(IngresoGastoDetalleEntity) 
-private readonly detalleGastoRepository: Repository<IngresoGastoDetalleEntity>,) {}
+    constructor(
+        @InjectRepository(IngresoGastoDetalleEntity) 
+        private readonly detalleGastoRepository: Repository<IngresoGastoDetalleEntity>,
+        @InjectRepository(IngresoGastoEntity)
+        private readonly gastoRepository: Repository<IngresoGastoEntity>,
+    ) {}
 
 async create(
         id_gasto_det: Partial<IngresoGastoDetalleEntity>,
     ):Promise<IngresoGastoDetalleEntity>{
+        console.log('=== BACKEND: Creando detalle ===');
+        console.log('Datos recibidos - id_detalle:', id_gasto_det.id_detalle);
+        console.log('Datos recibidos completos:', JSON.stringify(id_gasto_det, null, 2));
+        
+        // Buscar el gasto padre para copiar campos de usuario/fecha
+        if (id_gasto_det.id_gasto_id) {
+            const gastoPadre = await this.gastoRepository.findOne({
+                where: { id_gasto: id_gasto_det.id_gasto_id }
+            });
+            
+            if (gastoPadre) {
+                // Copiar campos de usuario y fecha del gasto padre
+                id_gasto_det.usuario_elaboro = gastoPadre.usuario_elaboro;
+                id_gasto_det.fecha_elaboro = gastoPadre.fecha_elaboro;
+                id_gasto_det.usuario_verifico = gastoPadre.usuario_verifico;
+                id_gasto_det.fecha_verifico = gastoPadre.fecha_verifico;
+                id_gasto_det.usuario_aprobo = gastoPadre.usuario_aprobo;
+                id_gasto_det.fecha_aprobo = gastoPadre.fecha_aprobo;
+            }
+        }
+        
         const nuevoDetalle=this.detalleGastoRepository.create(id_gasto_det);
-        return await this.detalleGastoRepository.save(nuevoDetalle)
+        
+        console.log('Detalle creado - id_detalle:', nuevoDetalle.id_detalle);
+        
+        const saved = await this.detalleGastoRepository.save(nuevoDetalle);
+        
+        console.log('Detalle guardado - id_detalle:', saved.id_detalle);
+        console.log('=== FIN BACKEND ===');
+        
+        return saved;
     }
 
     async findAll():Promise<IngresoGastoDetalleEntity[]>{
@@ -39,6 +73,28 @@ async create(
         id_gasto_det: number,
         detalleActualizado: Partial<IngresoGastoDetalleEntity>,
       ): Promise<IngresoGastoDetalleEntity> {
+        // Buscar el detalle actual para obtener el id_gasto_id
+        const detalleActual = await this.detalleGastoRepository.findOne({
+            where: { id_gasto_det }
+        });
+        
+        if (detalleActual && detalleActual.id_gasto_id) {
+            // Buscar el gasto padre para copiar campos de usuario/fecha
+            const gastoPadre = await this.gastoRepository.findOne({
+                where: { id_gasto: detalleActual.id_gasto_id }
+            });
+            
+            if (gastoPadre) {
+                // Copiar campos de usuario y fecha del gasto padre
+                detalleActualizado.usuario_elaboro = gastoPadre.usuario_elaboro;
+                detalleActualizado.fecha_elaboro = gastoPadre.fecha_elaboro;
+                detalleActualizado.usuario_verifico = gastoPadre.usuario_verifico;
+                detalleActualizado.fecha_verifico = gastoPadre.fecha_verifico;
+                detalleActualizado.usuario_aprobo = gastoPadre.usuario_aprobo;
+                detalleActualizado.fecha_aprobo = gastoPadre.fecha_aprobo;
+            }
+        }
+        
         await this.detalleGastoRepository.update(id_gasto_det, detalleActualizado);
         const detalleActualizadoDesdeDb = await this.detalleGastoRepository.findOneBy({
           id_gasto_det,

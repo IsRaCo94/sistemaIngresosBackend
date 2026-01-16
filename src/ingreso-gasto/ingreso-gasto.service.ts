@@ -2,6 +2,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IngresoGastoEntity } from './ingreso-gasto.entity';
+import { IngresoGastoDetalleEntity } from '../ingreso-gasto-detalle/ingreso-gasto-detalle.entity';
 import { Repository } from 'typeorm';
 import { join } from 'path';
 import * as carbone from 'carbone';
@@ -10,10 +11,12 @@ import * as libreofficeConvert from 'libreoffice-convert';
 @Injectable()
 export class IngresoGastoService  {
   certificacionRepository: any;
-    constructor(@InjectRepository(IngresoGastoEntity) 
-private readonly ingresoGastoRepository: Repository<IngresoGastoEntity>,
-
-) {
+    constructor(
+        @InjectRepository(IngresoGastoEntity) 
+        private readonly ingresoGastoRepository: Repository<IngresoGastoEntity>,
+        @InjectRepository(IngresoGastoDetalleEntity)
+        private readonly detalleGastoRepository: Repository<IngresoGastoDetalleEntity>,
+    ) {
     // Forzar la ruta de LibreOffice para libreoffice-convert
     process.env.LIBREOFFICE_BIN = '/usr/bin/soffice';
   }
@@ -32,6 +35,13 @@ async create(
         id_gasto: Partial<IngresoGastoEntity>,
     ):Promise<IngresoGastoEntity>{
         const nuevoPago=this.ingresoGastoRepository.create(id_gasto);
+        
+        // Si el estado es ELABORADO, guardar el usuario que elabora
+        if (nuevoPago.estado === 'ELABORADO' && nuevoPago.usuario) {
+          nuevoPago.usuario_elaboro = nuevoPago.usuario;
+          nuevoPago.fecha_elaboro = new Date();
+        }
+        
         return await this.ingresoGastoRepository.save(nuevoPago)
     }
 
@@ -148,63 +158,74 @@ async create(
       return textoEntero + textoDecimal;
     }
 
-    // Query para obtener los datos de gastos_ejecucionPresu_det
+    // Query para obtener los datos haciendo JOIN con la cabecera para datos actualizados
     let query = `
       SELECT 
-        id_gasto_det,
-        id_gasto_id,
-        id_certificado_id,
-        "numeroCertificacion",
-        nota_solicitud,
-        area_organizacional,
-        "descripcionEspecificaRequerimientos",
-        operaciones,
-        tareas,
-        descripcion,
-        cantidad,
-        "precioUnitario",
-        saldofinal,
-        "costoTotal",
-        ejecutado,
-        saldo,
-        num_prev,
-        num_dev,
-        num_comp,
-        num_pag,
-        num_sec,
-        "catProg",
-        partida,
-        tipo_ejec,
-        tipo_impu,
-        regularizacion,
-        entidad,
-        estado,
-        moneda,
-        unidad,
-        tipo_doc,
-        preventivo,
-        compromiso,
-        devengado,
-        pagado,
-        "fechaElab",
-        doc_respa,
-        num_doc,
-        gestion,
-        id_num_clasif_id,
-        des_clasif,
-        programado,
-        "fechaRec",
-        glosa
-      FROM "gastos_ejecucionPresu_det"
-      WHERE baja = false
+        d.id_gasto_det,
+        d.id_gasto_id,
+        d.id_certificado_id,
+        d."numeroCertificacion",
+        d.nota_solicitud,
+        d.area_organizacional,
+        d."descripcionEspecificaRequerimientos",
+        d.operaciones,
+        d.tareas,
+        d.descripcion,
+        d.cantidad,
+        d."precioUnitario",
+        d.saldofinal,
+        d."costoTotal",
+        d.ejecutado,
+        d.saldo,
+        d."catProg",
+        d.partida,
+        d.programado,
+        c.num_prev,
+        c.num_dev,
+        c.num_comp,
+        c.num_pag,
+        c.num_sec,
+        c.tipo_ejec,
+        c.tipo_impu,
+        c.regularizacion,
+        c.entidad,
+        c.estado,
+        c.moneda,
+        c.unidad,
+        c.tipo_doc,
+        c.preventivo,
+        c.compromiso,
+        c.devengado,
+        c.pagado,
+        c."fechaElab",
+        c.doc_respa,
+        c.num_doc,
+        c.gestion,
+        c.id_num_clasif_id,
+        c.des_clasif,
+        c."fechaRec",
+        c.glosa,
+        c.usuario,
+        c.rol,
+        c.regional,
+        c."idUsuario",
+        c.usuario_elaboro,
+        c.fecha_elaboro,
+        c.usuario_verifico,
+        c.fecha_verifico,
+        c.usuario_aprobo,
+        c.fecha_aprobo
+      FROM "gastos_ejecucionPresu_det" d
+      INNER JOIN "gastos_ejecucionPresu" c ON d.id_gasto_id = c.id_gasto
+      WHERE d.baja = false AND c.baja = false
     `;
 
     // Si se proporciona num_prev, filtrar por él
     if (num_prev) {
-      query += ` AND num_prev = '${num_prev}'`;
+      query += ` AND c.num_prev = '${num_prev}'`;
     }
 
-    query += ` ORDER BY "fechaElab" DESC, id_gasto_det DESC`;
+    query += ` ORDER BY c."fechaElab" DESC, d.id_gasto_det DESC`;
 
     const gastosRaw = await this.ingresoGastoRepository.query(query);
 
@@ -213,6 +234,7 @@ async create(
       return {
         id_gasto_det: item.id_gasto_det,
         numeroCertificacion: item.numeroCertificacion || '',
+        usuario: item.usuario || '',
         nota_solicitud: item.nota_solicitud || '',
         area_organizacional: item.area_organizacional || '',
         descripcionEspecificaRequerimientos: item.descripcionEspecificaRequerimientos || '',
@@ -250,7 +272,13 @@ async create(
         des_clasif: item.des_clasif || '',
         fechaRec: item.fechaRec ? new Date(item.fechaRec).toLocaleDateString('es-ES') : '',
         glosa: item.glosa || '',
-        descripcion: item.descripcion || ''
+        descripcion: item.descripcion || '',
+        usuario_aprobo: item.usuario_aprobo || '',
+        fecha_aprobo: item.fecha_aprobo ? new Date(item.fecha_aprobo).toLocaleDateString('es-ES') : '',
+        usuario_verifico: item.usuario_verifico || '',
+        fecha_verifico: item.fecha_verifico ? new Date(item.fecha_verifico).toLocaleDateString('es-ES') : '',
+        usuario_elaboro: item.usuario_elaboro || '',
+        fecha_elaboro: item.fecha_elaboro ? new Date(item.fecha_elaboro).toLocaleDateString('es-ES') : '',
       };
     });
 
@@ -262,6 +290,18 @@ async create(
     const templatePath = join(__dirname, '../../src/templates/documento-presupuesto.odt');
 
     const fechaActual = new Date();
+    
+    // Obtener los usuarios únicos de elaboración, verificación y aprobación
+    const usuario_elaboro = gastosRaw.length > 0 ? (gastosRaw[0].usuario_elaboro || '') : '';
+    const fecha_elaboro = gastosRaw.length > 0 && gastosRaw[0].fecha_elaboro ? 
+      new Date(gastosRaw[0].fecha_elaboro).toLocaleDateString('es-ES') : '';
+    const usuario_verifico = gastosRaw.length > 0 ? (gastosRaw[0].usuario_verifico || '') : '';
+    const fecha_verifico = gastosRaw.length > 0 && gastosRaw[0].fecha_verifico ? 
+      new Date(gastosRaw[0].fecha_verifico).toLocaleDateString('es-ES') : '';
+    const usuario_aprobo = gastosRaw.length > 0 ? (gastosRaw[0].usuario_aprobo || '') : '';
+    const fecha_aprobo = gastosRaw.length > 0 && gastosRaw[0].fecha_aprobo ? 
+      new Date(gastosRaw[0].fecha_aprobo).toLocaleDateString('es-ES') : '';
+    
     const data = {
       gastos: gastos,
       totalRegistros: gastos.length,
@@ -274,6 +314,13 @@ async create(
       fechaHoraReporte: `${fechaActual.toLocaleDateString('es-ES')} ${fechaActual.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`,
       num_prev: num_prev || 'TODOS',
       gestion: new Date().getFullYear(),
+      // Usuarios para pies de firma
+      usuario_elaboro: usuario_elaboro,
+      fecha_elaboro: fecha_elaboro,
+      usuario_verifico: usuario_verifico,
+      fecha_verifico: fecha_verifico,
+      usuario_aprobo: usuario_aprobo,
+      fecha_aprobo: fecha_aprobo
     };
 
     const options = { convertTo: 'pdf' };
@@ -292,6 +339,83 @@ async create(
         });
       });
     });
+  }
+
+  async cambiarEstado(
+    id_gasto: number,
+    datosEstado: { estado: string; usuario: string; idUsuario: string; regional: string; rol: string }
+  ): Promise<IngresoGastoEntity> {
+    // Obtener el registro original
+    const gastoOriginal = await this.ingresoGastoRepository.findOneBy({ id_gasto });
+    
+    if (!gastoOriginal) {
+      throw new NotFoundException(`Gasto con ID ${id_gasto} no encontrado.`);
+    }
+
+    console.log('=== CREAR NUEVO REGISTRO CON NUEVO ESTADO ===');
+    console.log('ID original:', id_gasto);
+    console.log('Estado original:', gastoOriginal.estado);
+    console.log('Nuevo estado:', datosEstado.estado);
+
+    const fechaActual = new Date();
+
+    // Crear un NUEVO registro copiando todos los datos del original
+    const nuevoGasto = this.ingresoGastoRepository.create({
+      ...gastoOriginal,
+      id_gasto: undefined, // Esto hará que se genere un nuevo ID
+      estado: datosEstado.estado,
+      usuario: datosEstado.usuario,
+      idUsuario: datosEstado.idUsuario,
+      regional: datosEstado.regional,
+      rol: datosEstado.rol,
+    });
+
+    // Agregar el usuario según el nuevo estado (preservando los anteriores)
+    switch(datosEstado.estado) {
+      case 'VERIFICADO':
+        nuevoGasto.usuario_verifico = datosEstado.usuario;
+        nuevoGasto.fecha_verifico = fechaActual;
+        break;
+      case 'APROBADO':
+        nuevoGasto.usuario_aprobo = datosEstado.usuario;
+        nuevoGasto.fecha_aprobo = fechaActual;
+        break;
+    }
+
+    // Guardar el NUEVO registro
+    const gastoGuardado = await this.ingresoGastoRepository.save(nuevoGasto);
+
+    console.log('✅ NUEVO REGISTRO CREADO');
+    console.log('Nuevo ID:', gastoGuardado.id_gasto);
+    console.log('Estado:', gastoGuardado.estado);
+    console.log('usuario_elaboro:', gastoGuardado.usuario_elaboro);
+    console.log('usuario_verifico:', gastoGuardado.usuario_verifico);
+    console.log('usuario_aprobo:', gastoGuardado.usuario_aprobo);
+
+    // Copiar también todos los detalles del gasto original al nuevo gasto
+    const detallesOriginales = await this.detalleGastoRepository.find({
+      where: { id_gasto_id: id_gasto }
+    });
+
+    for (const detalleOriginal of detallesOriginales) {
+      const nuevoDetalle = this.detalleGastoRepository.create({
+        ...detalleOriginal,
+        id_gasto_det: undefined, // Generar nuevo ID
+        id_gasto_id: gastoGuardado.id_gasto, // Asociar al nuevo gasto
+        estado: gastoGuardado.estado, // Copiar el mismo estado del gasto padre
+        usuario_elaboro: gastoGuardado.usuario_elaboro,
+        fecha_elaboro: gastoGuardado.fecha_elaboro,
+        usuario_verifico: gastoGuardado.usuario_verifico,
+        fecha_verifico: gastoGuardado.fecha_verifico,
+        usuario_aprobo: gastoGuardado.usuario_aprobo,
+        fecha_aprobo: gastoGuardado.fecha_aprobo,
+      });
+      await this.detalleGastoRepository.save(nuevoDetalle);
+    }
+
+    console.log(`✅ ${detallesOriginales.length} detalles copiados al nuevo registro con estado ${gastoGuardado.estado}`);
+
+    return gastoGuardado;
   }
   
 }
